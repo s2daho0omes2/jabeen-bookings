@@ -206,7 +206,7 @@ tr:hover td{background:var(--hover)}
         <div id="formMapBox" class="hidden" style="margin:10px 0 4px">
           <div class="toolbar" style="margin-bottom:6px"><span class="legend" id="formLegend"></span><span class="sp"></span><button class="btn sec sm" id="fZoomOut">−</button><button class="btn sec sm" id="fZoomIn">+</button><button class="btn sec sm" id="fZoomReset">ملاءمة</button></div>
           <div class="mapwrap" id="fmapwrap" style="max-height:60vh"><div class="mapinner" id="fmapinner"><img id="fmapimg" alt="" draggable="false"><div id="fmarkers"></div></div></div>
-          <div class="count">اضغط قطعة متاحة (مفرّغة) لاختيارها مباشرة. الملونة الممتلئة محجوزة.</div>
+          <div class="count"><span id="formMapCount"></span> — اضغط قطعة متاحة لاختيارها مباشرة.</div>
         </div>
         <div class="grid" style="margin-top:8px">
           <div class="f"><label>رقم الوحدة</label><input id="aUnitId" readonly></div>
@@ -1173,10 +1173,12 @@ function renderFormMap(){
   if(!d||!MAP_IMG[d]){box.classList.add('hidden');return}
   box.classList.remove('hidden');
   if($('fmapimg').getAttribute('src')!==MAP_IMG[d])$('fmapimg').src=MAP_IMG[d];
-  $('formLegend').innerHTML=[...COMPANIES,UNALLOC].map(c=>`<span><i style="border-color:${COMPANY_COLOR[c]};background:${COMPANY_COLOR[c]}"></i>${esc(c)}</span>`).join('')+`<span><i style="border-color:#555;background:transparent"></i>متاحة</span>`;
-  const sel=selectedUnit&&selectedUnit.id;
-  $('fmarkers').innerHTML=MASTER.filter(u=>u.district===d&&u.x!=null).map(u=>{const s=unitStatus(u.id);const c=COMPANY_COLOR[u.company]||'#999';
-    return `<div class="mk ${s}${u.id===sel?' hit':''}" data-id="${u.id}" title="${u.id} · ${esc(u.company)} · ${STATUS_AR[s]}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
+  const AV='#1e8e4e',BK='#b3261e',PD='#d08a00';
+  $('formLegend').innerHTML=`<span><i style="border-color:${AV};background:rgba(255,255,255,.85)"></i>متاحة</span><span><i style="border-color:${BK};background:${BK}"></i>محجوزة</span><span><i style="border-color:${PD};background:${PD};box-shadow:inset 0 0 0 3px #fff"></i>حجز مبدئي</span>`;
+  const sel=selectedUnit&&selectedUnit.id;let n={available:0,pending:0,approved:0};
+  $('fmarkers').innerHTML=MASTER.filter(u=>u.district===d&&u.x!=null).map(u=>{const s=unitStatus(u.id);n[s]++;const c=s==='available'?AV:s==='pending'?PD:BK;
+    return `<div class="mk ${s}${u.id===sel?' hit':''}" data-id="${u.id}" title="${u.id} · ${STATUS_AR[s]}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
+  $('formMapCount').textContent=`متاحة ${n.available} · محجوزة ${n.approved} · مبدئي ${n.pending}`;
   $('fmarkers').querySelectorAll('.mk').forEach(m=>m.onclick=e=>{e.stopPropagation();const id=m.dataset.id;if(unitStatus(id)==='available')selectUnit(id);else showUnit(id)});
 }
 function applyFZoom(){$('fmapinner').style.width=(fZoom*100)+'%'}
