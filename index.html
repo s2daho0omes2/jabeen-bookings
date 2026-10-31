@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>نظام حجوزات مشروع جبين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --green:#1f4d3a; --green-dark:#173d2e; --gold:#b8963e; --gold-light:#d9c89a;
+  --cream:#f1efe9; --card:#ffffff; --text:#2b2b2b; --muted:#7a7a7a; --line:#e6e3dc;
+  --soft:#fbf7ec; --hover:#f6f4ee; --active:#ecefe7; --glow:#f6e9d0; --shadow:rgba(0,0,0,.05);
+  --red:#b3261e; --red-bg:#fdecea; --amber:#9a6b00; --amber-bg:#fff5d6; --ok:#1e6b45; --ok-bg:#e6f3ec; --logo-bg:#fff;
+}
+:root[data-theme="dark"]{
+  --green:#8fcfae; --green-dark:#a9dfc2; --gold:#d4b25f; --gold-light:#6b5a2e;
+  --cream:#121614; --card:#1c2320; --text:#e6e8e4; --muted:#9aa39d; --line:#2c3531;
+  --soft:#242a22; --hover:#232b27; --active:#27352d; --glow:#1d2a24; --shadow:rgba(0,0,0,.35);
+  --red:#ff8a80; --red-bg:#3a1f1d; --amber:#ffd36b; --amber-bg:#3a3118; --ok:#8fd9b0; --ok-bg:#1d3328; --logo-bg:#f4f1ea;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Tajawal',system-ui,sans-serif;background:var(--cream);color:var(--text);min-height:100vh;
+  background-image:radial-gradient(ellipse 60% 420px at 50% -40px,var(--glow) 0%,transparent 70%)}
+.wrap{max-width:1500px;margin:0 auto;padding:14px 16px 50px}
+button{font:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--text)}
+.hidden{display:none!important}
+
+/* header */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand .logo{background:var(--logo-bg);border-radius:16px;padding:8px 14px;height:64px;display:flex;align-items:center;box-shadow:0 2px 10px var(--shadow)}
+.brand .logo img{height:46px}
+.brand h1{color:var(--green);font-size:clamp(20px,2.4vw,30px);font-weight:800;line-height:1.1}
+.brand .sub{color:var(--muted);font-size:14px}
+.userbox{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:30px;padding:7px 14px;font-weight:700;font-size:14px;color:var(--text)}
+.pill:hover{border-color:var(--gold)}
+.pill .dot{width:9px;height:9px;border-radius:50%;background:#aaa}
+.pill .dot.on{background:#2e9e5b}
+.role{background:var(--soft);color:var(--green);border-radius:30px;padding:7px 14px;font-weight:700;font-size:14px;border:1px solid var(--gold-light)}
+
+/* tabs */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 18px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.tab{all:unset;cursor:pointer;padding:10px 18px;border-radius:14px;font-weight:700;color:var(--muted);font-size:16px}
+.tab:hover{background:var(--hover);color:var(--green)}
+.tab.active{background:var(--green);color:#fff}
+.tab .badge{display:inline-block;background:var(--gold);color:#fff;border-radius:20px;font-size:12px;padding:1px 8px;margin-inline-start:6px}
+
+/* cards */
+.card{background:var(--card);border-radius:22px;padding:24px 26px;margin-bottom:18px;box-shadow:0 2px 14px var(--shadow)}
+.card h2{color:var(--green);font-size:22px;font-weight:800;margin-bottom:6px}
+.card .hint{color:var(--muted);font-size:14px;margin-bottom:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.stat .k{color:var(--muted);font-size:13px;font-weight:700}
+.stat .v{color:var(--green);font-size:30px;font-weight:800;line-height:1.1}
+.stat .s{color:var(--muted);font-size:12px;margin-top:4px}
+
+/* forms */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px 18px}
+.f label{display:block;font-weight:700;font-size:14px;color:var(--green);margin-bottom:5px}
+.f label .req{color:var(--red)}
+.f input,.f select,.f textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--card);font-size:16px;outline:0}
+.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--gold)}
+.f input[readonly]{background:var(--soft);color:var(--muted);border-style:dashed}
+.f .err{color:var(--red);font-size:13px;font-weight:700;margin-top:4px;min-height:17px}
+.f .okm{color:var(--ok);font-size:13px;font-weight:700;margin-top:4px}
+.combo{position:relative}
+.combo .list{position:absolute;top:100%;right:0;left:0;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:12px;max-height:280px;overflow:auto;box-shadow:0 8px 24px var(--shadow);margin-top:4px}
+.combo .opt{padding:9px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;font-size:15px}
+.combo .opt:hover,.combo .opt.hl{background:var(--hover)}
+.combo .opt b{color:var(--green)}
+.combo .opt span{color:var(--muted);font-size:13px}
+.combo .none{padding:10px 12px;color:var(--muted)}
+.btn{border:0;border-radius:14px;padding:12px 22px;font-weight:800;font-size:16px;background:var(--green);color:#fff}
+.btn:hover{background:var(--green-dark)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sec{background:var(--soft);color:var(--green);border:1px solid var(--gold-light)}
+.btn.sec:hover{background:var(--active)}
+.btn.danger{background:var(--red)}
+.btn.sm{padding:7px 12px;font-size:13px;border-radius:10px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px}
+
+.banner{border-radius:14px;padding:12px 16px;font-weight:700;margin:14px 0;display:flex;gap:10px;align-items:flex-start}
+.banner.red{background:var(--red-bg);color:var(--red);border:1px solid var(--red)}
+.banner.amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber)}
+.banner.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok)}
+.banner small{display:block;font-weight:500;margin-top:3px}
+
+/* tables */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar input,.toolbar select{border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:var(--card);font-size:15px;outline:0;min-width:140px}
+.toolbar .sp{flex:1}
+.tblwrap{overflow:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:700px}
+th,td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:var(--soft);color:var(--green);font-weight:800;position:sticky;top:0;z-index:2}
+tr:hover td{background:var(--hover)}
+.st{display:inline-block;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:800}
+.st.available{background:var(--ok-bg);color:var(--ok)}
+.st.pending{background:var(--amber-bg);color:var(--amber)}
+.st.approved{background:#dbe9ff;color:#1b4b9a}
+:root[data-theme="dark"] .st.approved{background:#1c2c45;color:#9ec1ff}
+.st.rejected,.st.cancelled{background:var(--red-bg);color:var(--red)}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.muted{color:var(--muted)}
+.count{color:var(--muted);font-size:13px;margin:8px 2px}
+
+/* login */
+.login{max-width:440px;margin:60px auto}
+.login .f{margin-bottom:14px}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal{background:var(--card);border-radius:20px;padding:24px;max-width:560px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h3{color:var(--green);font-size:20px;margin-bottom:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;margin:12px 0}
+.kv div:nth-child(odd){color:var(--muted);font-weight:700}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:12px 22px;border-radius:30px;font-weight:700;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:.25s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.err{background:var(--red)}
+.exc h4{color:var(--green);font-size:17px;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
+.exc h4 .n{background:var(--red);color:#fff;border-radius:20px;font-size:12px;padding:1px 9px}
+.exc h4 .n.zero{background:var(--ok)}
+@media (max-width:640px){.card{padding:18px 16px;border-radius:18px}.tab{padding:8px 12px;font-size:14px}}
+@media print{.topbar,.tabs,.toolbar,.actions,.btn{display:none!important}.card{box-shadow:none;border:1px solid #ccc}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAL4AAACHCAYAAACoAeP4AAABC2lDQ1BJQ0MgUHJvZmlsZQAAeJyVkLFOwlAUhr+LJILBOMjAwNCBgUWCDsaBCYaGzRRJKE5tKV2gbW5rfAHZGFjZiItvIK/ghomJg5OPQEh0NtdqysLAmb785885/zkgXgCydRj7sTT0ptYz+9rhJwKhOmA5UcjuEvD9nnjfzti/8gM3coA1UJE9sw+iCBS9hKuK7YQbiu/jMAZxrVjeGC0QA6DqbbG9xU4olX8KNMajO7XrLzcF1+92gBxQJsJAp6nuTyzBI1x9wcEs1ew5LCdQ+ki1ygJOHuB5lWrpT0JLWr9SFsgMh7B5gmMTTl/h6Pb/ETuyqXlldAICPEa4aLTxcaihcUGdcy5/AKbWPz8bOFjoAABJcklEQVR42u29d5Bd13Xm+9t7n3Nu6oROSI1GzhmNQASSYCYokxZFaUTZEim/NwOWpp40ZZfoKtvyG/KZmpoS9UpleZ5tcuwpW1OyJZkKNKNIkWBCIIlGIBKRUzca6JzvvSfs/f44596+3WiAJAIJkndXdQENdN977jnfXnutb31rLWGMobiK62JLR3+OhhQx4nv5KflMVvGxFtfF4K4jOJuLgP3TuETR4hfXxaz8SEuuQ9CEJ0D0pxACIUQR+MX12QC+wSAQBe6Lif4niP5uAeq8TVAEfnF96lfgByhLAT7GS+O5gzU6yDZYlolbybLfQOmn0mMuAr9o2y8SkmrAA7+P7vbmt862nFzb2XEOLztAzLYoK69h3ISZh0sqxn7NKa1pDL1/Ncrr6Wsu7C0C//O6DCD0ECiNHB65GsDPQKblgZPHtv/zoUPbaTt3Eh1kQfuIQCGMRWlpNVNmLWH6gtWbk5UT12GVAE4B0E0B8MUoF/HJhMxF4BeBfx7wTeAjlIFM+4y3X/3F4eYTu+gfaEFJDyUChAGjFSJQ+L7GipUzduoiFq26lcpJ8wUkMYGFUPIDwP3JAb9IZ35el6DAKsvwewMYH6Gy6L6mH7y16emHzxzfSWawDdsWWBK0NpjoC6FxEg6e10/LyR0EepDF2jNVE+aVC6uyFyPhosGuKPL4xXUNkJfCB38Q/K4Htmz65cOnj+7Ey3QQdySul0YEqoDoFBjj43oaKRVC+5w5/h4ai6WrZE/15AYRniKymMAqrmsR8AKMD8KEgWy25Yltbzy98fTRRvx0O7b00V4IFGN8hLDyvysESDQYjTYghKb5SCOB67NCKFM1cb5AJjBYGCOuKb5fFh/+593V90G4YDLorlNPvPvW8xtPHtmF0H3YSqMMyOhLEP45GnQkII3GwqXr7BG2vfrv9J47lEa4COEjZDAK6E2R1bn8HKP88EHdZyXvftn3RwM+kCHdfmz7+7vfbDi0ZwvZwTbiCYnvZpFBCHYtoteR4evoghgh3AxhkBxzUrgBIGxKaqaw9KZ7qK6bW+/I8tOQGPEgLsT2FC1+cV3hx2yMiYLYIZ4+03P6Xw+893rDwb1bCLI9JGIKo33QGpn30+VFoSOMRBgYTPdD4CKCQdqaD7B5069pObHrFAwCmVFeQxR9/MtTkwxf2axHLGZjQnFJ6MKiQUY32shrhWD4eEBvwBgQiAKK3YXBU0/s3/7b+w8e2Ebg9yBFgB9opNEoJCay8KFwIfTnjbjws1BKEhCAAUtJ0q1HOPj2S6isMXUzlsexrWwIO/EBR3Lhg7nyCbDPRnBrQjquUC8Siym09gGJQGCio/pz4+FclMHUYDIEvU1/tWPLv29sOvEeQboTjBdqcyJ/HqEwRg+nPQFhdLgNRCEjpAtyATlNp0b6GTqb3+d94aCRmfqZywVWBRj1IR5GFHxjMCZACHXFNoH1qbZkptBnDy2RwRAELpbIIqUiwMEUHNWK4Q/nPMv/WRQkDItrNNAP6eYntr3xq40nD21H+APELBFSk8KOTsfw94JRJQeFvv3F310pgdaDtJ7Zh298jDGmbsrSWpWsbAP7A7j9ofd0/R5idglD4rjL89Q/U09dolG4OMpl57YXTXvLfqPoB9woiNPoD3CRPtvLB9L4vWf+evMrv9l4cN/bCD2IVBptDAqLkWTHh6EfhRl9E+TpS6EJ3F7ONb3Prrd/y7nmPa3QN4rPP5rL43Py1KG/Pnz4oLnQpvj8AV+EnyDQASYAfB+TPvfVzS/+xBzc9RJbX/k5rU17jTJ9kxQe2mTPjw7EZ9v/kYWfUXjQd/qvd7z57HfOnTpAXPgEBGQDj0EvS1b7BFEcpKSFkQpjxCXDxBhBYAQYiSUVtnHpbj/M22/+kqZDbxn8jga0j8lGAbcXgDYFZ1WGo8f2HDp18uB35s1eIPIPvCBu+dzSmV4QYCsV+qx9577YuPW5Xx8+sIXMQCuxRIrK8bNZtXYDVRNnLEeNaQywEUMOz2ee2AplxaHlzPY0fXvfu6/+uOn4fmKOQNpgJx0ymUH6u7sY6OtCBGkwAVYUwSohRw1khwJcHVp8NBqJETLy/YefGCElCkJZGBkHp5wVq79A3ZRlj8XLJvwlQoAJQIXv5/b3NLx/6ND27r5u1t1wo5ByDCYIIv1PAfDFNQp8fcXgNforaa2RwsXrPPKr/Ttfv/fw/m1kBtuRMiAwAiMSjJ80l2Vr76Sqfk5tQFmbIJbzUq/hz3uF3lEHILMMdJ584v29jRv7eroYU1XD7DmL/jleXvmXqPhpr7/tL5pPHnrsTNN+zjbtYbD7HDrrIQFLirzPf2nANwUxWQhaIRTaGKxEGbUTZzN16jwqKipx7DiD6SwdbZ10dHRRWjWBBWtvE8bErmhg+ykCvh6VngMfAhcGzj2w+91n//nYoXfoaj1OqiRO4JvwBgcGo1JU1s9h+fUbqK1bLAwJBPYHXNWlXbke8Td51bfAByWoDNnB9pqW0wdaW882MX3m3FNVE6ZMhhTG2Pi+xrYtoA9voPmJYwe2bjy0721621swXhYLfwTwyTNkHxX4QhswVvjzCgIJGd+QSJaj7ARGWwiRQtkp5s9fzqyGdQuwa/ahbIwxI+KNy0PWxwD8i1+gNBcI6gvYmqFXkXhZj5gTCyOqIA0dJ/5pT+MrDx46vI10uhVhMhFdF2rCFRJfSKxkGbX1c1nUsIHqSDobIFD5N5Qjbmqu2Noa+t8CduT8zzX8e4Mb/ah1lcE//H3P/86ggzRupn+S67rzyypqXiQHUGSB2xdmcHG715w9vnvzjnd+S+vp90kojWNJfK0JgmDY583nRhgO/OFMc87VCa11GAiHlj+QmkyQRdk2WkgCkpRVTGbuwhuYs+C6m2Vq3KbRC1u49ulMeZE2FWKYNvxC/poedsTFYrGw5tOkId26cU/jKw+ePraL7GA7UviYYbxy6FdKNF6mk9ZTB2jMwoq1Kl1ZNychjAXCusBt0BfOq0TXe3EXU35gku3jqasSSBUnloqddhLmtIkoRH3ez1pAEpzYlnEzVokVlmW2vK7paz8GxmcwPYjj2PltIowseBc99IkNoyS4Rl6VzucDHFvgGQ/fOKRKK5i76DpmzGl4SKZqNmktkPLqGI2rZ/GHWeyhJFNh4wqJHP3EKuDntXQjMMsh66kz4J/ZuOONf3/i+P53Q9ArTRBkRti8yKoJGVkkC2QJNZPmsOL6uymtmrzcjlc1Dq8YKtSwhBZfjswZyKFTKJcjECNcm6vv6+sLELrn/5wssCq5IvLcSRu6DzoPSRNoBD7gcu7kLrPld/9Cpq8ZabIQ+KBzvysLElg6emcZWf2h6xtyTwpOikK1joBsYFFSVcfs+euYv+SOm2Vq7KYg0GghsaXzKRSpmdGBXwgstCy4L/K8xJSWoRUXOUgZDQMtX3x3269+ffz9bbgDnUh8TJgcGR5MRQ9CGlDRe3tIXJNgzLgZ3HTHVxkzYb6AOMaoKIDKXXqYxRyKKfTQ5xFD1it0heTQRv7Yg9oLbTF/GF+rdQHwhCj4rHrEhpAhWHUAfi8D7fvMpt/+nIGuJrTXh9QBMpI/GCkJ8FHkDAsFrs7owDcmyLs/Rki0cYiX1DJ30Q3MX3XHzdjjN+nAwhMBjlSYq2Q8rrqP7/lZLGUhhMKYMPUspQndFT0YAkrZBa0qQtdjKJgp2AXGhWxHw7ZNT20/tO81LNMTWaccNk2oR4ksPMaKfP2wyEILja8NRsUIjGLMuJnccNcfNVbVzFoeaFAymcc4gJCFmvV+MF4YW4jcddpADO0HSEvlfy+f1bnq7TZ0AfBVwfcG6A2vO7BD46LiIK2C+ykiczK0hYFQZxMBVRkNZpCOY7vNW5v+lf7uJpRxwXfDe01IP4ayZR2eANIK3UuTD2mHBcQBAmVbaCHxfIGKVbFo6XoWrvq9mcjSI0YlCIQa5vnKT5NILW+HLAsNKExkaQJMtnNGV2fz5o7Wptqe9nOYAMoraxlbV3+qpHzcl1SirDHrGiwniRRWdPPCV+ztaHviTEsznpfFGnH1QgrylIKRhfgb0gIKg++lseIp+vu7aG463TCmZgYCpyDxElp2YQIQLrr/3MaWM0efaO84y8BgPzEnQXXNRMaOq388Fq/8SxmvyBLkNEEUyHZzXWeuIk8f+GACVCSaH+w584OO1lMPd3eeY6Cvj1SsnLHjJlNVM/4haad+LVJlbWChURH4R8gQwhQWBgiEROkEVfXzxer195l3Nj9Ld9vx8NyUYEkb3wQfIsrT+XuiiTwmJLGSGuYsvp6Fq+9aDhVHIB5y/QxVQopPtx7fgPbB66O/69T2U0d3NjRufwXj9aF0Lm8hEU6CKbOXMHPBaqrqF4iA5DDaUeIDHsf3vm52v/ss/d0nkV42svo6f5QOaUlkGISZ6CgWmkCCthyUU8XsxTey5Lov1ho1pk0pB9d1sSwLP3BxbEV2oOXO9qb3Xji67x2amg7jZQdQSuH6PnaslGRpDQsXr6Z+6pIfxyum/BdMDCPDBxw+tGHO0tVxJX0XbIHuP72x+fTeJ44f2sHpE/vx0oNYEjAWRjmMq5/JjLkNjJu88HuJsnHfD4gTGIUSoVmRumDXKzMsFPW9fiyhaT6607zX+DydLQcRXholDIH2RrX4ufsvjYp0VD5agI9C41BaXsf0uatYvPYLMwNVcUT7EtuK5U9YHTk58poF/gcUdoSqOgFuR6y39Vhm+7YXaDl9gCDoQvhZYtJB+xFwhYNLjLLaqSxZfTtT5qyoR1ae1jhDIaOfATnImWPvmB3bXqK7+RgKF4kL6LzWRIsh8EsEQhs0kn4/S6pyIrMWXs/SFbd9Tzjjv49VEmU4o+whLtBfc2zf1tZdm59joLsJS4ZBn9Y6AraFZ2yUXc7suSuZt+jGw2U1U2dhlxAIiyACvrogw35pPP8wPtv4ofvVd+6rhw+8+bM9u98gM3gG3MEwUxr5Xj4CK1aKkxrL/GXrmTyr4clE2cSHAuII4QwBXxQG8Llr1GijsYQFDHLywGvm4J43aDt1iCDTgyNH0L/5zKqO7n3UaU34BFLiEydVPpF5C9Yxd9mN9wdO9c8DkcQSEt91cRw7fxH6KkL/8oBvRt6oAl43H8x6oDtrOk7sbG3c+gKtzQeRwo1UgxGvWyhCVQ6eLyivrmXWguuZs/yLAlkeVf7kWtf54PfWnDt1oLVx068ZaD+O73djSZPn3QMRHtpCSBQC7WsCYWEnK1my6jZmLLrpITs59knjhSeN9l2kMqDTIAYaju16Zfvud35HuqcdZfx8kF54vzQSqWIIu5T6WYtY2HBLpqRqVgKrIrJY4oI+qk8QcUbWRzrQdc4oC0APQG/Ld/dvffHxfe9vJZvtRMn0UHyDJMCLnpUV3hu7jHlL1zF/+e1PxsrqHoISjBYIeaH0l1fQRtAHt3tS87Fdp3a/+yLtTUdIEWC0i4xJ0m56qN4hYm+UDEmDQIAWCeKlE1mw5CZmzl97r0yN+81QXDcKE3gVebErDHxdwG7IEPQM0Hr0XbNz63N0tx1B+72hZcbKZ/FGs2hCCkoq6pm64A7mLllfLmOlvcic/YxA5XXF2o/uzGx/81m6O4+iyKD1UErdCIURYUBlqTjCKmPpipuZufj6x2Rq2l+GVxq9nnZBBuB1NezY/Nz2o/teY7Cnmbiyh13jyPulgwAtbazSMYybvIClq+5pLKuattzIOELaefJOjjgaLxX4Q5DMYgbOfHv3q//+49NHd9I30IpUWYQM8kAvBH6OgswG4KRqqJu5nFXr7n7SKa1/yPgWwoldgCjVw5JUoVXppaPpPfPuWy/QefJ9YsInHQziaQ/HUcMoS0tZuH6Aj0NZ1WTmL7mNqbNWfccpq/sbY2zEhXh6cXUJYfXII49cen2+yNF7OY/WIPIP2GAyXbHupt3+zm0v0nH2OH6mHysKXowI/yIKsh050EslMdowmB6ku+ssts2fpcoqWqxYeWOI+WgDqFiQLKt6tKy0/JGOnjbSmX7QPooAiUFqCAKNclLEEtXMWbiWeUtueUiUTP5hGOAZ0BFvLSVm4NwX9257/tWD773J4GArlgwzu+KiwWWAsiSel6anu5OB3q4JdRMm3KDi5T9B2Jjot8WI1HS45dQlg57smW/v2vLsjw/t28rgwDmE9EMxmhEUhocmeh7ShL68bUmM9ujtaWewr69h4vjJndKKvxNoMNLKX47Mv0LEyuSjFYPQgmTluEdra2oeaW8/w0C2Dz9wSSRtjPbDkNmEn01KhRdYlFZPZs78dcxZePPNVnLCz7WxMEikvNDnjz7DVYpuLxn4Jv81dGsKD3KT6Y6l+5q2v/7iv9T2dZ7CeGlM4GNFOzzEu4jKAsWQflsKAt8HBLat6O/toKuzjUQieXdVTc1TGKsNrIhrFKCSpGqqHi0vTT3S3HyabKYXgUZGclofhYpXMWfhWhY23PIwyQl/Aw6BIAS1CEAE6L6zX9278/WnDuzehJdpB+2GQZuQH3jvpZBYKmSuurva6e/rmTp58vQWnHijKCzbG8ZTiI8YREWg14Pgdtz57mu/+umR/duwGCAI0hFRWNi+w6ALjippwsqqIPBRUiGlpqujnc6Org31k6d0qnjJO1La54VsJv9drnOyREuF1pAoq3y0bsL4R7q6uujvHyQIdIgHE1LSGhspE5RUTGDOgnXMa7j1XpEc/6LRYXGQssSHLBu7BoPbMHgNnZfA97CVDWaA/nP7zesv/YKucwdRZPL+fC6rF8gRlLeREd0ohgLUaIMERpEor2bxytuYNve25So+tjEEvoy49QD8nprmY7taN7/6M7y+s9jGx81q7NJaZi9ay5KVX3iQeM1PsEpCSk272BLAxe1u+Ysje15/bMc7L2OCTgQ+Ust8TvZigaYqICw14BofFSunpHIKd/7+Nw7bFdNnIZNobZDSAoKRTTk+sP5Um2x4OggP+k//YMeWFx8+tG8zxu0Og/qC+ENE16PF8OShiu6xCBRaSIwIM9kinmTitMWsvuErT8r42IdUoizKVhf6+TniU0dZdB3poCKRoN+/Zv+7mza/v/9d/GwPvjtIPJ7A88FJlDBz1nIWrLxzAcnafRgr0jqN0D992oBfaPvDqxyg/8yhk6+//C/1XW2HkGYgD6ShbGrueeiCCp7Rfbmsn8WyY9jxGMKpZOl19zJp6rL7nUTVz5E2IZkfHcN+a83pw1tbG7f8lv72FuxYilmLV7P0hns2oKpfRMdwtcaxbHwyWBiyPad+8P7uNx8+sHMT2u9CB2mk0UhjIbREfEB9Xc53zrMQjsFg4QYOY+vns/bW/9AYS024WcZLe42wRnmOFy+89smidNi8ye9u/osDO19+7ND+LaT724ipIKwrLgwGjRyWRygUAgojMTp0E43Q4e8pibFKmDBlOSvW/t7mZO30deAQBKCUk9+moiDjbgoiOYUFOgtiANKd3+3vank8PdAVPhHL4czZHhZcd3McxmTJNaP6dAD/A4KM/OkdgNdNe9N7ZtvrzzDYdYpMuhPLLhSZhZz6kMDpA1QmAgIjCAIf2wqzrSpeyfLVG5i18OYFJKojCyKH0vSZthlnTu4//M6br1A/ZSpLVt9+r0zV/CbU46jIZrnooB+R7fyrQzt/970921/HdXtwpEZ7wbBPOuQ66PMSYoVXb3IpeWVwXRclHJxkJbVT5rFi3V09ycrpFYZcwCtHFMJcGPihJMAj237yiYPvbd54eN8bpAfOYXCxlRVKfYdJFBjlRNFR5jps9hrKR3RIefo+TrwETyWZMns5i1fcfio5ZvJkrDLAioCfOzGGCH8dfYIgMARelng8RthCxAU/M6O7teX5jq6+mdPnLhTIkrCJrJDDuAk+zcAPPA9l2+D30n5qj9n1zjOcPX0AhYvn9mM5KmpGJEOrHrk8H0ZeFWDyN1h7Gsuxybg+FZWTmbP0NuYtW78Ap2ofuSSXMaHrQ4bOpqN7KmtrHiJWucUnjiXDthcKDaQxXscD77378j/v2fYClhkIj/FAI7RAaDl0Gn0I4Bsx/BMIKQhcD2nFCewU9TMaWLzytp7ycbMrIJZ3JQoUSBcKnQGfdO+pvzjYuOmxQ++9RZBpBb8frVQozdBW9J7B6HULufsnwpPBaFHAs4e5KiMUrgaVGMOMeWuYv2z9qWTN7MnghKIzrCHg512o8POaiP9XORfW7+PUyePbM5nBhtlz5wkpy8gEAbaxUFKMHuKYawL4+kOJjY0JIr9PgN9P5+k9pvHt52k9sw+p0wRaY4wu0LtEbegicZT8kB5WEPVczF+nVASBpKS8hqkzG1i0+p6HZEndk2DjZVzseCyyfm70cWKYyO8V0gey6IHmv9r99nPf27/jTSyTQRiPgCCynnK45EGaUe9LLtlvLthgKRRhecZGxMcwacZi5i27nuoJYS0AqBHCvaG3iZRMWDIN2ZaNjVuff+Lonq3odDsqGESgwzyFkag8xXtx0ZouoAfPv/cyr0TVKsmU2StYtOqOw6W1s2ZByQiZsx7e5aLw+t0+Tp08fMgImDB58ixlJUA4eZ5eftRY/ioC3/pwavpRNoPwI2etj6bDO83Obc/T23kcP9uHkh5GKISUeR8412ZOXEBO+0HZyiFAaSQefV2nOH4YfJl4Ytl1d7bK1Njf2HFnuJQ4annnex7CeFh2AJlz392y6TffO3FgK3g9+EajRJjACTdY9IiFHtHQ6MOpk8SIB2Yrg5vpoenYLgSaZVb8UKpm6ixEaSQKUsOOfWM0WmexbIVx22/a/tazTxw98DaZnmZiUQ/KHE+vLvZ8LhqTDBctDzlFPm62h2OH3iXt+TNXXs+hspoZswwJTGBAOVG5SUFbFkOY7Q7StDSdeB6grq5+lrJL8urYa3EuykcMbnWoyEOHfL3p58zhd82urS/R3d4EfhopPAweAQahw25cwgwB30Q6EDNKQDbaJghGmABBTuWpCUSMRNk4Js9qYPHKW6NMZOo8gbDGR5LGHWh6onHLsxuP7nsH4Q1iEYQHtjZoAowxBTqTwgoifeGKsQ8wUCanUTcKK1bKhMnzue7G3+uxSictxKk8jXEKFFm590lD5vRfb3716e80H9+Dn+4Os91+NsrKytBmmVzwfekFL3kxnS5w26wYLjZj6+ey9qYv96Sqp1dARU65M5zTEB7GS3P6+GHjuh5TZs0XVqyMrJ9FWE6UoPsIeVhzTbI6BZoM47K78TWz752XENluHMdBKrAEuN4gmWwvgTuIIwRKh3tfmJy/ownkpQE/74IIAVKR9jR2vIL66UtpWHV7a8nYaWMR8SE3QvsgfVrPHu7ev2db+fEDOxlTGqespJSYVHR1tOFmB3Az/fjuIJYyw9wGMyLB8lGBn85kiMeTWDKU4WIlqBw/k+Vr76Jy6hKBiYXBuYlqFEx6xkDnmVdefuEX9Z2tzcQtRSIRA6EZ7O/BdzNI/Ojk0yhhhmmUPooMupD5UTrXQCoAqRCOhUuMVOUUrlt3N+OnLq7FxNrCLgjR5jMasoPzd+3esdex48xbvFxoFQfhECXQEVIMSwF+aoFvCBBAOtPPwf07TNeZoyyYO4ea6XPKweoFTaan5fkd21/bcOb4PgY7z2AbFxkEYfRvO3mV5Eh/mXxF08WuYIQvLRTaKLS2SabG0LBiPXXTZqPG1DyM5y4YTPc8ePTwfg4cOERpeRXrbrxjc2l51Z9iV24JGxq5kzqPHTi1Y+urtJ0+hPZCVy00gbrAN87JjMVH7i1T2GUg5NdtnFgl4yZOZ2HDGkoqqlqVsk4PDnQ27N/zNkePHkY55cybv4rZ85Y9phKl/4zjHMFPrzn83rbN7+/dSm/HCVQwQOBlw4SdGP2+XWgj6BH/rPIVmyJkf3ISYuEQS1YysX4ui5asoLS8+hROrBE323DyxKn6d7bvYsasRSy94XYREB/y583Q+3wk4F+rrg5IAj2IlALtuyg8UA6IJBpJoH2MzuBYHl3NB8yubS/TcmI/uDnXwo8SWEN9GAu1GR8V+DIKJBWKwCg8H6xkOYETIxAS3w+orZ3AggUrmLxw1XJEZSOEuhQT6DBzqwdgsPO7h3dtfvzQ/nfo7WpGkM4XrwxrivqRgC8LgD/8HgptgbAJrDjSiZH1QlerJBVj7ITJrLnh91tV+aQFqNK28Hoj7ZPbXYbpe3DH5md/fHT/u/jpDow/OCyL/FGBn4+/zND1moL5WBoLRAxlJUA5GOXgemA5JcxfsJrFq2+uJ1Z1GmyCfC/9HBkh0NdgB7MPYHUuFDzpqLrKw7ZsMAYT9UuJ/KCoM3HAwLn923dt39Rw+vAO3L5W4nYAwh+qVTV6WALmUoEvDRgtMFIgbBtXGDwTo7p2NguXrmfyvGXlqPLePPWZpyRMeGRrFxjk2M7Xzf733qS39SjG9A1jpQqBPyR71hc+mY1EG3sYnZjPUJsht80HslpQNXYq9bOWs3TlTQ9jV/wQqwRtomSRsArC0DSYNMcaXzWH33uBnvYT+IH/kYB/XqGI8PMs2rD2KCZ0WwI3LO3EVqhYCSVVk5k2ayULV/+eQJUOJeLMCHdFflL9hi6L1blQ0BQKkCwlCJAhK1I4DFgKCMLGKamqacuXrrJ+Fbete4/s30aQ7cgXJg9vTMRlVHuZUDGnDEIZAuEBFtU142lYcTPjpzcITYJAC2yZ81E9CAKMcMINqxKgJdOW3iACidnfmKGn/SSWyQ7PMYgP/+iMyBHdBXEJCrTBiJy+P0CoGMnUGKbOWcycJTc+hl37Q6xkyIYJESk7C6tP44DDtOW3CoJec3A/dLefQfuZ89zAiwe+EqGjTtMiojyNKigdlGitUUJi2aGbZpRNLFnO3AUrmbVk/QZEilzzV+N6CGUVnOAyfGEBwuSr26+JAR1Xv9jcBCA9BlsPP7+n8Xcbjux7E+31EZMSz88ibTkqayLMB2+MgBEsjBQYoQiEQ2l5Pauvv4dxM9cIKMknmUI9i4sQ2eghxNHayrexMDqD8HvLmg5v73lv+8v0nDuE8PvR2kepcJPkQXLRoFcPTQ0pCN4VKixmMaEi1AdiFWOZOns1i1bc9uN4auJ/gTA4NyKsHx7KzAZ5NifcgD6YHg7tfs0c2vk7utuPot00jpJI6YSvQXDRZq+WDu+/Z7nh9WonOokDhNGhpseE+n4tk5RWjmf+0huZNnftQzI1/kmDkz/pg4yPiuWqwmzQGmQsPFRzcreRD1TyibhC8qo3dRUKtCJZUXfXgmU3Nc5afCMyXomWdgGo5fnughjuAn0gESAFGkk2UJRVTub6W7/MuKlL6yGZT2AhXKRIk+lreWD32y+ZdOfxtyCLMW6BQY+DU9lbN33pzIbVG6iomY5yylB2Il9kcaHuwMN96IIej6Kg74zWefdj0A2wS2uZOX8ty66783vxxLgI9BZGRC1LdB89bUf+4uDe102m78xGcMPTSptwE4gqps9dWz9n6XoqaqaG91UqhBB59+dDnepmaINKQ9RqSqBkmLn1RYLSMROZu2Q9U2avekwmxz6pjY0QQ+ehilsQ9NJ8ao85sf9Ng+4pAz+0+EJ8wlOvrpAs+aOA32iBsGyckqona2rGDfT3D9ze3XsOKb2QljM52awoaA+iMcJw0e6gQkR9c8JgTNlxyiunc8P6L1M1tUGgSnoNFloajPCRZICOr25/85mfHtq1iYHus/WTpkxJSTv5stYCoVV4CGgBTqKzpLL60fKSskeampvxgzRCBAit8+r0wq/R1eQyqrsd4jW0NmG+QAliJVXMWng7i1dsuNeKj/2fyNIhS280iDR+38nnX3vxpw+1HH0PS2fvrhlTOUA8tYXIbTImQFqp3ooxY15WlvV/ZgY6yaZ78AMvYnvUhQEvDEZE8mVhMLlhKSIM+gUGKRxcHaO8qp55i25g1rwbNsjU+P+JshBChPkawlMU3VnWcmpnZse2F2g+tosxCefPSsqqf4SVzA61NRHDSxzFJzPm+eoDP+JytVBoBHYssaWuflJLf3/33e3tZ5GBQea03kZEqX5TAPoLl2uHVVYSLRTSThBLjuO2DV+nfMLcckhlkbEQpHnQ9ze8/sK/vHTs4DaU201PZzvdfQNr6+qndFpOyTtC2kT5ubDPDopUxZhHS0tLH2ltbSaTCduhyAKV+oWf1PkSBmEkQkoynsGOVzB93hpW3PyVWmlV78i1PESIsDBGDAA9N73w879/rOvsIaxgkLNnm4jH47dXVlXvxkq973ouQodVmcIqO105tvZvpXYf7urqon+gl5hjDXVmOY/nN8PqPXLafRFlqsP9b+Fph2TZBGYvXMOcpbcsJ1H7JsaJSkElrnaxhQDTNam7/Ujr22/8O+dOH8Af7KCl6SQVlZV/Vlpe9r9Qsd6QuJZDZkycT6t+poA/lOiTCByklWgcN36Cnx7I3Nzb044OPATg+27Ylz1yFUxkMS/8mhKtDdqkKKueyQ23/gcq6hYJRGkWYYMRCCkRBOj+lu++s+nppw7veR3l96O0jzGanp4u+nt6N1RWj0tZTvJlYdmhSyNASAVCUVYz7tGyVOkj51rO4noDEQUqyGZdlDU6ixJKH0JrKozA+AE60FhOHCtWwbT5N7Dqtq/ORFU0IZwImDrMxJp+yJx869l//R9/2dtyDMtk0YFLEGRpOXOKspLU/eXV4/9W2SWDoUUX0c5KDFZOmPqo9nlkoL+dTKYXtLnAHQwRb6L4U5rwXMoGWYS0cGIpMr6Fnaxh/pL1zFt5VxxVdpq8yyfwTYAtbQQDdLbs7Xnn9afpPHWEGB5K+HhBhubTRylJxf+4vLL6WaGSLSJn5gpiXXMBkfvVbC/yMQA/vPzCD6ONxnZK3qyqqp4TBO6Cnu4u3KyLbckczxfRmjknQYzuHQoLN4gxrm4uK9fdQ23dAoFMYYQTWk7hg8gS9J359s63X/rRqcONaLcLy7j5Bqb4Hr3dXWTdYG1pefmcREnlLxESHUTdDLSFEBZlJRU/SqVK/qy3t51sehBpRCgQE8M915H0YTieSCCx0MJGxstYuHw9S9b9/lpM2W5kDCJdk5AG43aR7Wt65bUX/veNnWcPIoyLzAWoIsBzB2lpaSHmJB6uqqn9Wyw1OCQYU+BDTf3UR23FIx3tbRg/G3ZFGxFfDJ1LsqBcNKSohXLIBBZO6VjmL72JBavvEsiKABUHE0qRwYSF5PTT1rzHNL75DO2nD2Dr8HqN9BFC47p9dHS0E4+VbSwrL39W2naLwBpiLcQnIs78OIA/suZUE+CHpWupyl9WVlSscl1/Zn9fF4GfReKFPiahyyPOI4aHACbtUirHz2XR8jsYP2O5QJVgsKPMo48UGbyOU/90YMemP3t/z+v42Q6kccPNZFTEshi0l6WnqxWt3QVjqiumOvHEb6S0Q5/URG0O7US2orL60VjMfiQ9OIA72Icg16T2fODn/FkdhEPLtGVTWjWRaXNXs3DlnQ8Rq/wNKhEqWIUKX8PrIdN1/NzWTU8tONe0P+r4oEMvOmcQhI/rpulobaI0bj+cKitvkU6yMVR7irwLUllT99+lin0v3deKn+kdpc32UKczka+XBisWw8OirKqeBQ23Mn/FnQI5Jjx9VZjOFcKEdf+mh86W3abxzX+nvfkgeAMoEQ7a03LIZnuZLB3trZSmEhsTsZLjyknuRqooRvtE5Pgfn6sz9CEMtrBx/VBK5qTG/LSyYswcz3MXdHW2onUWke9KMzzTaHJfUqHsElSskuvWf4nxMxsEOg7CjmIFjRRpMP0z3n/nd/+4b8dreNkOJG5BKj0sKjRBlmTcJj3YT093F4EJllSOqZxqJyp/k/fTrehMFjYVYyc8amMe6erpJN3fj8HPSy5EbpymGCow8QLQ0qGsejy19fNpuO4LD4vk2L9BJkHIkN4TIej7uk5uf/etp2c2HdmF8PvD1xVyWF2ysiXG+ATuIGeaTpEsKb27rKy8RdoljaAwfgDCQlglQfWEiY8Kr/+Rwf4eMpksPrnAPPrTmFBESC6ukrhGkaqcwKIVtzF78Y0zA1HRibKRUmD8qPGgJUH30HX2gHn3jadpa9qP8AYoTSXxPW/oFIyC5cBzCXyX/u5u4rHkvclkolM5iXcQVrTlPuPApwDOtrKQMuypYidSvywpKblbWtaE7p5zDKb7UEriuS62HcP1fQJjQCk8fGS8jPLqaSxf8wXGzV4poARUZDWFALcP3M6v7n792Td2v/s7hO5HShMVl0fdk0X4o1IKTG6cUODR1dmO9v0ltVW1LTKebDRRO4mQjQi17+W14x6NJUoeae/uxniDmMAFHWCCAMeK4bkeSjloYyPsOGVVE5k65zqWLr/tcVVa9ygiEZ3xMrLQWfra9pvdb784oelgI47JYqMiVsjka7wEISMkhUAKgQlcWs6cJOnE7q4sr30DO3FCyNA1QwgC36O6ZsLbdjz59cFMPz19HSgZdqAItI9lqQjIYdcLXzokKiayaMXtzFx048yAsiNSJsINHVl6RAD00nb8HfPOm/9O26n3UTqDEgbP8/IJqtAAhdpUS0qkhsGBfjo6zlBeXrKhtKTqWSGcFpTCXATenxngnz/FNLSk8ZKSJ5PJxB/allPV1t6J5/nhFBvpEBiBlnbY+MkqYeKUhTRct4GxUxaXI0uz5Ck7H7wB8Lq+uuOt53527OA2jNeDFO4F7IpGiJA2zWUW04N9dHd109fXd/f42pqUSiVezmVctR9gtEGoGCUVFT8qH1PxZ0HWpa+nD2MkQtjhQGQVY8A14JSQKh/P7IVrmb3o+u9ZpXX/d64EMgxIffAzuF2n/nrrW0+vaj9zCLI9qHyXiByIzHmz6nIuoO8N0N/TDdJ+cEx51RtSOSdQdtSnUqDs1JGK2vH/PRazvzeQSdPV2YltOaEEQoRdKDI++DLBmLHTWLb6TqbNW7Mcq2aflPEh8kdENRjKpfVoo3mv8UWaT7yHI7xhme1Cd0pgkMZEf0oQAf3pLto72kgmyjdWVI99FCt2UZnKp7x35sUGF+SCQzfse28yNW0nD7Ru2fI8XedOEbcURhtwFDJWzqIlNzFl5rIHE+XjfhKKtworj1xIt39186u//NnhvW/giHR+GPEHt9kOfRo/EAgVw8g4dTMWs+a2+79nl4z7PsTRvkFaTtRZIiDwevH7O37QdGTPw/t2bWagvw1tgrCRqpNi/MRZXLd2Q2PZmLrlWEm0lkjLKehOnMHta/rrba8/852mo7vQ2S6UcVFRsXuucspcLJGnJFkXSqunsWDZzUxfeEtcOJVZI1TY6kMHYDJI4dLTfuLQ3sbXZjYf3Y/w0rheBh9BorSKuqnzWLh4TU/p2BkViFRYORWQV9FKDMIM0n5yu3lv+0ucPLkbW2SRvj8smTcyjsgn+0Q0McWSeMRIlE1gycoNTF90q0CWXdDXl5814I9eX6rBD0C54LV9W3u9Gwe7exegDSrm4CSqHlepuj/FJPMN73V+KEEI/APvvmJ2bv8t/uBJZNCPQiGNHIXHHg78nOgMoXBdjRQxAruc6275Q+YsWiewSoaPmswF3UEmbF/udz2Q7W3/8eBgT7kVcyiprP5nn+QLdmzszyEW9rNRdtRaMLcZB9m/4xWzddPT4LaTUG7YkcJoVNSVQkeDq0erSBNCYKRBG4VHCSU1s7jhzgd+XT1+9pcMduieyMJ+m2nwOxtwe76d7e540E1n0LZD6ZjaJ2XJ2IcQccKyyOijeSY8oKI+mIJ+3njhn8zJI9tJD54hLtyw1s1cXBQX9huLRHASvMBGWxXEy6bwe/f/yfJk2cRGPr/AL2RxfSjogDx0C6wCrcpoaXcfhMd7b/zK7HvvGbL9Z7B02LFs9JEyOsoUD03y0NLHaBvHqWbarJWsuOMBgUmBiig4qUYZOa8LrlcXCMrkeeV3ctiJ5+P3n/3qrrdf/tn7u17CT7dhOQKFCXvTF3RvGLV9odD4xgOrhLIxM1m84g6mLlovNMloiosc4TOYaKiyX1DUk+tScaE2J37BlWcY6D7xT5tf/9WDTYe2YptBLEQ0KOJihTBD6k9sRdp1qKycx82/9/WekprZFWFHh8+aZOEj8z450DgjvuyoPYiIuPHCBEeBeMAIxk4Y/1NLeN/p6enCd908j30+pWfCINfkOpBJsGysxBimzmxg5S33PoQqawwLpuVwdabJO75Dm9LY4bWKXCsTVdhadFg5holIROkk942tGmMpqW8419qCCdywWk1cePq0NiEfrzEYK07pmDpWrL6LybNWzkSVdIq86FaMFEBFVxIOtEA40Qywi7UyHD6DzInHfzNubM2Xs+m+2t7uLrTvQdQRezTQ504sIyJ5kUpQVjGJm277D5ROmp9AJj6GKQLXPPBzFddy1AinkDHXw8QM0Xc53txOdNZMrP8prvcdd6AbN9OXT97kHo6OcgUqH4TJsOWdU8nsxetZuu6e+2W89idG2EMF4YJ832AKKoxMXl8/1PBUF1xtaH1Vfs4rItdlVIYNRuKlmyrLKlPaD9amB7vxsn2YaMDOhaqqtNEoO0Wqsp7la77ApHlry5HlLZAY2pDDxESmAMBiREtD8YEUxNDddnCc+N9Vj51w2+BAun6gqxXtDobU5SiS7Zz0xBgQdiljqmdy3bovMmbS4nJUZfbifYU+b8BndAGHKXgQZhjwTa78PaTbhQThdNZMqHtWZwc2pgf7yKSzoaBLqLw4K9e+VZhwWIEvksxffitLVt+1VsbGvRiQiJJHhe1ghrsPBQnIYenaMBVv8pMHh/2gOF+OrpySl6srqytdt3/VwEAPmWwaI6LXESFycps2MKCsEpxULctWb6B+9sqbEeUHh2jSC2FptE5O4kMALxIDDl0tthP/X+PGjruhp6tj6sBALybww745I9wyiUQbC2GnsBK1rLr+bmpnrhSo0qzxNELan4gm/xoE/ghLJc7PAYsCuzWS8BuyOgKk01JVNbZTC3tDd2cbXjaNwaBsiRAaPwhwnCRaO4h4BUtW3s70RTc8ZpdM/InGKXBnTB78eeCPMKqIkTgSkZa+wKKJ8xWJ+S0sLVQy9WJlVfWcrp6eBT09rbjuAMoOp4CHOh6FkhJNHLtsIqtu+iL1c28QyPITYEexz4gOw6JAOyFyfr0Y4fp8oLa8wLUUYeJNxrASpT+prKr9w97+waq+nlaMzmLQaBNEe10Qk3GkKqO0ehorb7yb2vrFy6Vd3qKNQijnKs8I+1QB/8M8hvPtlDlPIBF2dhRO6TtlJaV+Imbf3N3dSTY7gPazYTZUKgLfwkpUsWj5LcxetO4xu6L+LxExtBkZFEaxrZAXJpgv9m9i+N9FQSY7V1JpUNiO/cvaseNucH1vandPF4Hvo5RBComb9UAmsEvHsXr9vdTNXlELZYNDNbkFFU6jvf95O1Vc4uAbkQ/cYyVj/qa8ovw/e25/qqOjFR34SBFNnxQ2fYMwpnoay6/fwPjpS+qFM+b9wNiRpFR+UgVYnz7gf9CGOE8hJiQqnnyzsqLqfW30l7s7z4DORC2zBYnSscxcsJr5y26/X5TV/Q3GCV2Vwlbzw/qlyY92NIsP2hwmN00gwq2NHS/9SXXNhFQ2463t725De5nQ0bCSxMrqWb3+i9TNXS0Q5YPhAAgxrEbhamSALrxNLBKl5T8sKyt7JD2YZqC7G3wXqcJJi/GKetbc+iXGzlxUiyxtCaJep2F0Yz6x2kPJZ36JkGmJV/x83vI1jy9YtATHdshmsyQSSeYvXMyilde/QLLq57hWJBAPx4Z+PHPxhmhPA4Qta1Mkyqb86ep1X7y3bspSpF1JQAnx0olcd+PvUzd7lYCyaHat/AQz7zLqnexQMX6uWLH291on1C/EitcQyFK0LOcLX3qQsZPnLYBk2C1CqItMBvus1Nx+4kuH9Z+WBN1Pf+sBs/nl/0225wzpgX4Co6gcO5O1N91H6cQVApHKa821CfvLyDzXX1jAfQUbIpnh7T6GBe0mDZm2O9949ZkX2s6dZtGSlcxceqvAJCP+nU9ssMLQCDs9lJAzGdKtRw5teeu3M1vbW9hw91eoiHqFaqx8Vzk5Mrown8r++Nfy8qPhcwN0nTliGt9+kbPHGxF+L+gAqeIEJBk7aSHX3Xjf4dKqKbOIl0YlfYIgElkN059cJeDnesafdxTrNJn+jjX9/W1PVFWNu1fEqo6E7tiHfP2PBfihyxOWzmfpazv1RBC48yvGTV4HcTTOeXqcYcObi8C/AgOlh/2rC6arprPlYOuurS9y7tQBjDeQn4srhADjYGQJVeNns2zNHVRPWiCwxkQPVA61xfiwwL8in6IQ/gbwMGQjPisejdkZARrx8d9xnc8OyHwKSpggOiFNPkuiL3JxH2j1P5luyZ/ODTCk3Rmkp/VI645tL9J2ai862xN2BTB+2MZcG5IxRTbbw7nT+9i5zbBYKlM7ca6QVmnB0LOPceuaUU4D6YQDLXSAFXH7OeBJIT/h1gXD02yBUJjARHW4QzUUnxBr+RkGvhme4JJRQ9vA7S3raz3cs3f7c3Se2ovJDqAArf2w0khZoMIyOktKBFnaTu7joFKUrRMmPmGxgMTQ+NGraukLbN9IDj7SZyhho6Q91AIE+fFXaI8C+JEnrTGgZMFQQAHqw6BeFIF/GfyNxhgXKTz6u08d3rntJTqa9+Onu8LphSMrm3M93USY97WMpvn4bvzAZdk6YconLRRSxqMj+5Oj3s7rKP0JX8rFaEFZcION4BNLUH32gS+Gk2uQxe08/au3X/1l7bnTe5A6nQd9WL0k0VEvHy10Pqg00ZgFHQxy+th7ZL0M19+hTWrsIgFlEcUZfAyW/8pEB58jvrrI4wNke7q/+PzTv7j3zMn3Q9CjL2h1cl2Ch/WJF2AJj87WE7z83FOcO33y+SGhVnF9VtZnLrhtbm7+dRAEeRVj+Pfzwa/z7cllXlRljEHJUBogLM1gepDe3t4NY3O/4/thU9yP0ycVny4Ldq26Np954E+bO08kHN+888YAvW2HkSIAoy/YXmPkMLRAQyw1Bru0hoUrb2PG/IUCbUCCsp1rp/ljcX3Oefwo0ItaJkXjPDOcPb7DvP3a0wx0HASvZ1iF0JCCcyjln+tXbyfKsFK1zFt+JzOWXC8wSQxW2P5aB+QL24ueT9HVuXZqtyQuGstYjJuySKxY55t97wo6mt8n8AfCluWjztSSUdtCi1SylsUrbmfS4vUCWZ6fRhu2fFBFi18E/rXF6uQ4ZQsrsugWE2YsF5aR5j1inGnag/R7sWTYsz83kQXp4PoByrEpr57C4qV3MGlmw0xkcjiLI4uWvgh8rnWKKufCJKmdsVTM8T1jhM+55v0EQX+oQzP5cnOUU0Kiopq5y26kbmbDTJLjjoSFJEWAFIH/qTwNQvDXzV0lHMcyjUFAx5n9CDIowp6UKElqzFjmL7+NuhnLNohk5ZEiLIrA/9SfAVqEqfXa+vnlKxQ9Lz/Tjj/YFg4mxiJeOpalK25h0pxVM6VTdcSPuh+oIjaKrA6fYsHakL7dBz3A2SNvm21vPEdr82Gqa8azZO0XmTpnZa2IVbZpbUBao0iviqsI/E+1XNkF3cvZ4/tM47bfMXX6bOYtua0Wp7LNGBFN7NPFpH8R+J+BZXLD1woGNesMAz2t302lyp7Eqeo1gcDXBttWQ9slP6ZTFpmcIvA/haBnaHJ6gMEYgTE6bJgnJSYgP5s18KNu40IX8PVF4BeB/6kFPwWjQyUfatb2JzyAuLiKwC+u4qIoSy6u4ioCv7iKqwj84iquIvCLq7iKwC+u4ioCv7iKqwj84ioCv7iKqwj84iquIvCLq7iKwC+u4ioCv7iKqwj84uLKFM7o4ucrAv/zvAGKG5xrt9h85MW/+NsXzc6dO6mpqeHBBx4QMdu5oq/veS7pTIaf/OQnpre3l/qJddx44433Tp48+TdX4oZ4nodlWQghSKfTbN+xwzQ2bqd/YIBMOhMOZ7BtUskkY8eNY9myZa/Onz//FqPDPvuXWrhY+HuvvPI7s23b2wDYtoXruqANjuPkJ7Tbts2dd9756wULFnzpcj7vYDbD715+2ezZuxdjDJZSZLNZYrEYnuejoi7TNTU13HrrrQ9Nmzbtyct5jm3tbTUvv/RS64nTpygrK+P/ePCPRCqRwPd9bNs+7/deff01s2XLFqZOmcLXvvYH4kpZ7iveZeGtN9/kiSefZN68eXzlK1/hcoE/csVshzfffMv8vz/8IdlslvFjx1FWVvbruol1It/Q9TKWUirfY9MYw89//jOee/55Bvr7sWw7bCrrukipiMVizJs37+b77vuSue/LXxalpaUF078vcaNrzbvbt/PEPzwZvo8Jr0MiUEphjMH3fSzLor6+/t4FCxZc1vsFvs/LL7/Mv/3bvw1rs6gsi8D3sVW48ebPn8+MGTOeuFTg51ZHe/vjv/jlU7yzfTu2UpSVlJoH/vDrwrJGh+J7u3fzd3/3d6xYvpyvfe0Prt32IplMBt/zMNpclc65Gnj2uWfp7u6mqrqapqYm3n33XW699VZKSkou3/eTQzYkCAIymQx9fX2sXbOGb3zjG1RWVeF7HmfPneNn//oz3nzrTU6fPoWUyvzBH3xN2Jd7wgkYTKfJZrOMHTuO/+tb/xnbtrCVlb+fvu8DsGzZsocvGwC2TTqdxvN9GhoauOeee/L30WiD9n1isRilpaXMmjVr7RWwLKTTadLpNAO+z9///d+zbvWa786YMeOHo/2463oMDgyQyWTQWg97PtcU8H0/iDruSZS88iFEV1cXzz/3HKmSEr754IP87f/4/zh48CCnTp36p7lz537zSm42rXXeKo6fMIG169bNrK2tPWK0wfM9br7ppjV//ud/vvnpp5/mxRdfYM3aNT+YMWPGn16O1ZdCIFU4yCKVSvLlL98nEokkcdtBG43v+yilsG37ihiWbDaLlBLf85g2bRr33XffzKrKyiPGGLQxxG0nfxLk2q9f3j0NynIGpnbceA6+/z4/+tGPHv/hD3/4w0Qicf4+sRQiGuwxmit5zQS3lqXw/QDXdQm0vmIXmPtz06ZXTW9vL3V1ddxxxx1MmTKFgwcPcvjw4Qc9z7viGy3QGqkUlhpyoywpsZRFTU3Nlttvv51YLMbp06c5dfLkw5fr6kgEOtB562bZNvFEHKkktm3j2E4+BrkSS0mJVAopQ0MlpeyxLJuY7ZBwYvn26lLKUX3wSzAm5bFYDKUkGzf+J2zb5tVXX+Wll14yOWMT+AGBH0QTbARCCoSQny9Wx9c63xA2CAKef+EFstksS5csZdKk+gXz58+nubmZxsZGBgYGrvj751w2ZVk4tnMEwCuwfOXl5diOk/+Zq72UpfLH/cdRL517rxwgLztGi8UadRAaxJUrV3HTTTfR29vLP/zDP9DU1LRGSomyFMpS6EATaI0OArQOrigLdM0Dv/DhHj586J/27t2L4zh88d4vEovF9q1bt45YLMbu3btpbm7+FVe8/WbIagS+j+u5MxQCWylspeju6al5a/NmAGbPmcOMGTM2XPGYJhpLOhrIr0YMZYyJa63zdGPO3csB8gqwZjOEEKFHEPh8+zvfIZVK8d577/Gzn/1sc29v77CpNblJNdoYzBXs0X7NA99WKj/MeOfOnQ+2tbUxbvx4VixfLkpKUsyaNYv6+nqOHz/OoUOH7r3iFlZKdBAwmE7T29u7saOri6YzzWu279xx7mf/+rPWZ555hunTp3P33XczYfyEF694TNPZ+e2urs5YZ2cnXV1dnD17dlJ7ezv9/f0hzXnl3+974ft10NXVRVtbW013dzeDg4NcKVfS8z2EkGQyGRoaGsRXvvIVstksTz31FNu3bzfZbHbU2Ocz3TRWn9fexqADTc9AP1u2bGGgv58v3/dlqiur0MCUaVOXL13esP2pp55iz7693HrrrZSVlV2564kszp739vD4D37wsO04Dw/093OmpYUjh4+wcNFCNv6n/8TNN98irkTwJSNgGGM4e/Ysj33/+z+2lPqxMORpTIApU6bwJ3/yJ+e1h/mop0A2m8WxHfwgYNu2bWSz2Y2WbW/M/TtaY1kW8+fP54EHHhCXG19IqXrDCZSaINDEnBjf/OY3v/fOO+88tmfPHv7t3/6NKVOmbJw2bdqTuZjCGIOU6vPVLVlErsXxY8cOHT5yhEBr7rnnHoLo2CsrK2tcvGgRzz37LG+88SYPfP0bD5SWlv5ECHFF6C8pBH4QcPZsC37gk7NGHe3tZLNZWltbOX36NN3dXQ2pRKLxsmMaDLFYjCDQdHZ28uorr+A4DpJwkJ2UEt/3Wbhw4RWh9pKpFEHgYylFy9mztL30EvF4HM8P/037QTTgWpBOp2OpVCp7pZ/xxIkTv3///fc/dujQIV555RUaGhqeGDdu3JPJZDK8BmMwJnT5hBSfD+BLwPU9GnfsmHns6FEaGhqYOnXK2mw2i+u62JbNzJmzmDRpEkeOHGbfvn3/XD+p/ieFQeDl8tyWUtxw441861vfoqqy8knX9eafPHli7RtvvMEvf/UrfvSjH3HmTMv2b3/n27U11TVtl+VaRayQbVvU1dXx3x77PrFYDFuGySvLsvB9n9LS0r2O41x2gOu6Ljp6jdWrV/NH3/wm5eUVaB0B3oT+fVVV1Y/Ly8uzV+P5xuNxbr/99pu3bdv26q9//Wueeuoprrvuul8tWLDgS4lEEiVl+NmvIJ15zQM/wDAwOMihg4fo7e3l/QMHuP/+r232/NDftJRiMJ2muamJbDbLli1bWL9+Pclk8ooAXwehRKGmpobZs2bFK6uqsgCzZs/ipptuYu7cuebP//zP+cUvfs6SJYtbv/Sl+0TORbsUalNEgaQQglQyxXXXXSfi8TjxKDEmhCDwgytm+fKuhFLU1NSwYuXK2urq6rZcQC1NGOBLKfOB7pVcWc/FEooJ4yds+trXvsauXbvYtWsXzz333L0zZszAcey8y3lN0Zkyesi5PwOtsW0LJa9MAkshOHTwoNm+/V0CrRlMpzl58gQnT5zgTHMzx44dp6O9PX8cv/HGGwwODpZdSVZFBzpHrdXm/t1xHJKpFDfddNNDa9as5dy5c7z51lv09vVe8n2U0UbXfoDQJh/Q2ZY9bFxp4WmW+9y5r0sN3nUQ5J5ZmyIEulQyn0y78LjUj/g5DT0jJSg5tuj6668X994b8hN/93d/x/vvv789FWWRr0QO4YoC3wsCFAJfa3wvTC8HWoe6livAa6fdLHv37uXEyZNMmTyZ3/zmN7y6adP3tr399v2bt2zZsHnzWw+9tXnzhv/nr/6KSZMmsW/fPhobG3tkdDxe7ZUqKfn1jBkzsGybvr4+ent77zQYFOKK0m+fpSVNNF41N7zDhL67FJK77rqr8YYbbqC/v58nn3yyIRGP4wcBllLD8iefuKuTpxulxPMNHR2dWEpROabyiliInp6eSTt37qS3t5cv3HUXc+fMFVVjxkTTTkKAZT2X9evXP/7C888/3Hy6iWeeeYZbb711mODsai3PdWe2tbXhex6lpaVFVH9UVzYIUNFpJS3J4sWLl999991m7969PPvssyxcvAjbsvA8H6nktcXj59ycHTt2mGPHj2GMYf78+cSc2GW/9qGDB0/t27ePklSK6667LmQ8MOENQ4QjPm2b+vr6P128ZAmxWIw33niDzs7Omo9jvPzWrVs3b926lZLSUmbOnElZWdmLAkFwiT7+521pHQwTNAohuOOOO8pvvvlmMpkM//iP/4gQMs/qfGIWP0cR9vf3c/DgwZOO4+yTUvYcO3bs/p/+9KecOd1EdWUVX7nvvs3y0vqW52+C67qcOHaco4ePMGXKFGbNmJkpSSbz8uGhnSuwhGTNquv4xb/+jLNnz/Laa6+1fvm+LwvxAdlGeYHPl9fm2zbGaLq7uzh54sSpnp6ex3UQlDc3n9m4Zctmnn/hBbq6Orn1tttYv379r1PJ1Efr2z9iXm/+4SpFZ3c3Tz/9tEklk3ieHwq1rJDek0JQWVXFLetvuqzdpf0AS4a05cnjJ3j+2eeMDDU7KKWQlsr7+NOnTz+8eMmSWeISLKcckly0KitSm2o9qmy9tra294/+6I9ONTY21u/duzeUYwc6PBk+KeDnQDEwMFDz+OOP13d0dNQDdHR00NrailKKP/7jP2bWrFnrLiUgKvz5rq6umt27d9PX18eiRYsYP378XRcqHLFtm/nz56+tq6vb3NnZyTPPPMPdd99N3Epe8vtbkSbdDwK2bt1Kc/MZYrHYw9lslp6ebs6dOwfAhg0b+Na3vsX06dO/lNuQl/qItA7FWUHgc+7cWb7/2GPE43Gy2SzGGFSUQBJC0LBsGbesv4nL1M7kX3vnzp0cPnw4zyoJIfACH6kUtmXxwIMPzly8ZMllvZ/vefXGGLTnw0Us+JLFSyZ/4xvfMP/1v/7XSN4QXFG31boU6iu6KVnP9Th8+DD9/f2MGTOGW265hfvvv5/rr79exGKxK3KBY8eO5T/+x//IXXfdRU1NzabzYoyCaH/s2LFbvvnNb7Jnzx6SySSu6xJPXjrwY7EYc+bOZdWqVfT29tLe0Y6UkkQ8zowZM7jnnntYsXIlCxcsWFtZVbXlSrh2QkiWLVvG17/+9bASynZCqbKUCCHJ0biZTIY5s2dfESrztltvo6KiIm/ZC78Co0mmwlNs7pw5l/1+5eUVP77zzjs3Tp8ylbq6usaLifG+8Y1viO7ubtPR0cG0adO4ZiaiDA4OEgRBKKSKNkR5eXleWHUpoiYzwtXJuR65ZM3Fdn3gB3nNehAEpFIpzAdYCXmRa/A8Dzcq+si6YQrfmJCx8lyXeDyOjBJLUslRrbz8iK5OrhxQCIFQEqFNnsPOieVisVhIG1s21mVSxoEfIJXM635yGW+tdRhHRTy6bdn5OovCzykvpdZWa9xMBqXCKrYLudOBH+AHPjqSTVxJSvMjA/9ytSGXo878MO838ucvBfgjE2gjJRRXhD0wF8lgjZjQpQt0SyPfX37CRe+yONn8s7muJWYmdy3F1hjF9iLFVVxF4BdXcRXHfRZXcRUtfnEVVxH4xVVcReAXVxH4xVVcReAXV3EVgV9cxVUEfnEVVxH4xVVcn8r1/wPhkC3GurivXAAAAABJRU5ErkJggg==" alt="Jabeen"></div>
+      <div><h1>نظام حجوزات مشروع جبين</h1><div class="sub">إدخال وتسجيل الحجوزات · العزيزية والنخيل · ينبع الصناعية</div></div>
+    </div>
+    <div class="userbox">
+      <span class="pill" id="connPill" title="حالة الاتصال بقاعدة البيانات"><span class="dot" id="connDot"></span><span id="connTxt">جارٍ الاتصال…</span></span>
+      <span class="role hidden" id="rolePill"></span>
+      <button class="pill" id="themeBtn" title="الوضع الليلي">◐</button>
+      <button class="pill hidden" id="logoutBtn">خروج</button>
+    </div>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="loginView" class="card login">
+    <h2>الدخول</h2>
+    <div class="hint">اختر دورك وأدخل الرمز السري. اسمك يُسجَّل على كل حجز تدخله أو تعتمده.</div>
+    <div class="f"><label>الدور</label>
+      <select id="lgRole"><option value="maker">مُدخل بيانات</option><option value="checker">مُراجع (معتمد)</option><option value="admin">مدير النظام</option></select></div>
+    <div class="f"><label>الاسم</label><input id="lgName" placeholder="اسمك الثلاثي" autocomplete="name"></div>
+    <div class="f"><label>الرمز السري</label><input id="lgPin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off"><div class="err" id="lgErr"></div></div>
+    <button class="btn" id="lgBtn" style="width:100%">دخول</button>
+  </div>
+
+  <!-- APP -->
+  <div id="appView" class="hidden">
+    <div class="tabs">
+      <button class="tab active" data-tab="new">حجز جديد</button>
+      <button class="tab" data-tab="bookings">الحجوزات <span class="badge hidden" id="pendBadge"></span></button>
+      <button class="tab" data-tab="units">الوحدات (الماستر)</button>
+      <button class="tab" data-tab="exceptions">تقرير التدقيق <span class="badge hidden" id="excBadge"></span></button>
+      <button class="tab hidden" data-tab="admin" id="adminTab">الإعدادات</button>
+    </div>
+
+    <!-- NEW BOOKING -->
+    <section id="tab-new">
+      <div class="stats" id="statsTop"></div>
+      <div class="card">
+        <h2>تسجيل حجز جديد</h2>
+        <div class="hint">اختر الشركة ثم رقم الوحدة فقط؛ الحي والبلوك والنموذج والسعر تُعبَّأ تلقائياً من الجدول الرئيسي ولا يمكن تعديلها. الوحدات المحجوزة لا تظهر في القائمة.</div>
+        <div class="grid">
+          <div class="f"><label>الشركة <span class="req">*</span></label><select id="fCompany"><option value="">— اختر الشركة —</option></select></div>
+          <div class="f"><label>الحي (تصفية اختيارية)</label><select id="fDistrict"><option value="">الكل</option><option>العزيزية</option><option>النخيل</option></select></div>
+          <div class="f combo" style="grid-column:span 2"><label>رقم الوحدة <span class="req">*</span></label>
+            <input id="fUnit" placeholder="ابحث برقم الوحدة أو البلوك أو النموذج…" autocomplete="off" disabled>
+            <div class="list hidden" id="unitList"></div>
+            <div class="err" id="unitErr"></div>
+          </div>
+        </div>
+        <div id="unitBanner"></div>
+        <div class="grid" style="margin-top:8px">
+          <div class="f"><label>الحي</label><input id="aDistrict" readonly></div>
+          <div class="f"><label>البلوك</label><input id="aBlock" readonly></div>
+          <div class="f"><label>النموذج</label><input id="aModel" readonly></div>
+          <div class="f"><label>غرف النوم / الحمامات</label><input id="aRooms" readonly></div>
+          <div class="f"><label>مساحة الأرض / البناء (م²)</label><input id="aArea" readonly></div>
+          <div class="f"><label>السعر (ر.س)</label><input id="aPrice" readonly></div>
+        </div>
+        <h2 style="margin-top:22px;font-size:18px">بيانات العميل</h2>
+        <div class="grid">
+          <div class="f"><label>رقم الهوية الوطنية <span class="req">*</span></label><input id="fNatId" inputmode="numeric" maxlength="10" placeholder="10 أرقام تبدأ بـ 1 أو 2" autocomplete="off"><div class="err" id="natErr"></div></div>
+          <div class="f"><label>اسم العميل <span class="req">*</span></label><input id="fName" placeholder="الاسم الكامل كما في الهوية" autocomplete="off"></div>
+          <div class="f"><label>الرقم الوظيفي</label><input id="fEmp" inputmode="numeric" autocomplete="off"></div>
+          <div class="f"><label>رقم الجوال</label><input id="fPhone" inputmode="tel" maxlength="10" placeholder="05xxxxxxxx" autocomplete="off"><div class="err" id="phoneErr"></div></div>
+          <div class="f"><label>طريقة الدفع <span class="req">*</span></label><select id="fPay"><option value="">— اختر —</option></select></div>
+          <div class="f"><label>تاريخ الحجز <span class="req">*</span></label><input id="fDate" type="date"></div>
+          <div class="f" style="grid-column:1/-1"><label>ملاحظات</label><textarea id="fNotes" rows="2"></textarea></div>
+        </div>
+        <div id="formBanner"></div>
+        <div class="actions">
+          <button class="btn" id="submitBtn" disabled>تسجيل الحجز (مبدئي)</button>
+          <button class="btn sec" id="resetBtn">تفريغ النموذج</button>
+          <span class="muted" style="font-size:13px">الحجز يبقى «مبدئي» حتى يعتمده المراجع.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- BOOKINGS -->
+    <section id="tab-bookings" class="hidden">
+      <div class="card">
+        <h2>الحجوزات</h2>
+        <div class="toolbar">
+          <input id="bSearch" placeholder="بحث: اسم / هوية / وحدة…">
+          <select id="bStatus"><option value="">كل الحالات</option><option value="pending">مبدئي (بانتظار الاعتماد)</option><option value="approved">معتمد</option><option value="rejected">مرفوض</option><option value="cancelled">ملغي</option></select>
+          <select id="bCompany"><option value="">كل الشركات</option></select>
+          <span class="sp"></span>
+          <button class="btn sec sm" id="bExport">تصدير CSV</button>
+        </div>
+        <div class="count" id="bCount"></div>
+        <div class="tblwrap"><table><thead><tr>
+          <th>#</th><th>الوحدة</th><th>الحي</th><th>بلوك</th><th>نموذج</th><th>الشركة</th><th>العميل</th><th>الهوية</th><th>الجوال</th><th>الدفع</th><th>تاريخ الحجز</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th></th>
+        </tr></thead><tbody id="bBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- UNITS -->
+    <section id="tab-units" class="hidden">
+      <div class="card">
+        <h2>الجدول الرئيسي للوحدات</h2>
+        <div class="hint">مصدر الحقيقة الوحيد. لا يُعدَّل من داخل النظام؛ التعديل يكون عبر تحديث الماستر شيت من مدير النظام فقط.</div>
+        <div class="toolbar">
+          <input id="uSearch" placeholder="بحث برقم الوحدة…">
+          <select id="uDistrict"><option value="">كل الأحياء</option><option>العزيزية</option><option>النخيل</option></select>
+          <select id="uCompany"><option value="">كل الشركات</option></select>
+          <select id="uModel"><option value="">كل النماذج</option></select>
+          <select id="uStatus"><option value="">كل الحالات</option><option value="available">متاحة</option><option value="pending">مبدئي</option><option value="approved">معتمد</option></select>
+          <span class="sp"></span>
+          <button class="btn sec sm" id="uExport">تصدير CSV</button>
+        </div>
+        <div class="count" id="uCount"></div>
+        <div class="tblwrap"><table><thead><tr>
+          <th>رقم الوحدة</th><th>الحي</th><th>رقم القطعة</th><th>البلوك</th><th>النموذج</th><th>الشركة</th><th>غرف</th><th>حمامات</th><th>الأرض</th><th>البناء</th><th>السعر</th><th>الحالة</th><th>العميل</th>
+        </tr></thead><tbody id="uBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- EXCEPTIONS -->
+    <section id="tab-exceptions" class="hidden">
+      <div class="card exc">
+        <h2>تقرير التدقيق اليومي</h2>
+        <div class="hint" id="excDate"></div>
+        <div class="actions" style="margin:0 0 10px"><button class="btn sec sm" id="excExport">تصدير التقرير CSV</button><button class="btn sec sm" onclick="window.print()">طباعة</button></div>
+        <div id="excBody"></div>
+      </div>
+    </section>
+
+    <!-- ADMIN -->
+    <section id="tab-admin" class="hidden">
+      <div class="card">
+        <h2>الرموز السرية</h2>
+        <div class="hint">غيّر الرموز الافتراضية فور أول دخول. الرمز لا يُحفظ كنص بل كبصمة مشفرة.</div>
+        <div class="grid">
+          <div class="f"><label>رمز المُدخل</label><input id="pinMaker" type="password" placeholder="رمز جديد"></div>
+          <div class="f"><label>رمز المُراجع</label><input id="pinChecker" type="password" placeholder="رمز جديد"></div>
+          <div class="f"><label>رمز المدير</label><input id="pinAdmin" type="password" placeholder="رمز جديد"></div>
+        </div>
+        <div class="actions"><button class="btn" id="savePins">حفظ الرموز</button></div>
+      </div>
+      <div class="card">
+        <h2>القوائم المنسدلة</h2>
+        <div class="hint">كل قيمة في سطر. تُستخدم في نموذج الحجز بدل الكتابة الحرة.</div>
+        <div class="f"><label>طرق الدفع</label><textarea id="listPay" rows="5"></textarea></div>
+        <div class="actions"><button class="btn" id="saveLists">حفظ القوائم</button></div>
+      </div>
+      <div class="card">
+        <h2>سجل الحركات</h2>
+        <div class="tblwrap"><table><thead><tr><th>الوقت</th><th>من</th><th>الدور</th><th>الحركة</th><th>الوحدة</th><th>تفاصيل</th></tr></thead><tbody id="auditBody"></tbody></table></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="modalHost"></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ===== MASTER DATA (generated from the master sheet; edit only via the sheet) =====
+   [id, district, plot, block, model, company, plotArea, builtArea, bed, bath, price] */
+const MASTER_RAW = [
+["AZ-001", "العزيزية", "001", "01", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-002", "العزيزية", "002", "01", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-005", "العزيزية", "005", "01", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-006", "العزيزية", "006", "01", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-007", "العزيزية", "007", "01", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-013", "العزيزية", "013", "01", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-014", "العزيزية", "014", "02", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-018", "العزيزية", "018", "02", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-021", "العزيزية", "021", "02", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-022", "العزيزية", "022", "03", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-025", "العزيزية", "025", "03", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-026", "العزيزية", "026", "03", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-031", "العزيزية", "031", "03", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-032", "العزيزية", "032", "03", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-035", "العزيزية", "035", "03", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-036", "العزيزية", "036", "04", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-040", "العزيزية", "040", "04", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-041", "العزيزية", "041", "04", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-046", "العزيزية", "046", "04", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-047", "العزيزية", "047", "04", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-051", "العزيزية", "051", "04", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-054", "العزيزية", "054", "05", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-058", "العزيزية", "058", "05", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-059", "العزيزية", "059", "05", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-062", "العزيزية", "062", "05", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-063", "العزيزية", "063", "06", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-064", "العزيزية", "064", "06", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-065", "العزيزية", "065", "06", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-068", "العزيزية", "068", "06", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-069", "العزيزية", "069", "06", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-073", "العزيزية", "073", "07", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-074", "العزيزية", "074", "07", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-077", "العزيزية", "077", "07", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-080", "العزيزية", "080", "07", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-081", "العزيزية", "081", "08", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-085", "العزيزية", "085", "08", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-086", "العزيزية", "086", "08", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-091", "العزيزية", "091", "08", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-092", "العزيزية", "092", "09", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-096", "العزيزية", "096", "09", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-097", "العزيزية", "097", "10", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-100", "العزيزية", "100", "10", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-101", "العزيزية", "101", "10", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-104", "العزيزية", "104", "10", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-105", "العزيزية", "105", "11", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-112", "العزيزية", "112", "11", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-113", "العزيزية", "113", "11", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-117", "العزيزية", "117", "11", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-118", "العزيزية", "118", "12", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-121", "العزيزية", "121", "12", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-129", "العزيزية", "129", "12", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-130", "العزيزية", "130", "12", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-131", "العزيزية", "131", "12", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-134", "العزيزية", "134", "12", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-135", "العزيزية", "135", "12", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-139", "العزيزية", "139", "12", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-140", "العزيزية", "140", "12", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-148", "العزيزية", "148", "12", "B2", "ياسرف", 348, 392.85, 4, 8, 1614000],
+["AZ-149", "العزيزية", "149", "13", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-150", "العزيزية", "150", "13", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-154", "العزيزية", "154", "13", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-155", "العزيزية", "155", "13", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-159", "العزيزية", "159", "13", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-160", "العزيزية", "160", "13", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-164", "العزيزية", "164", "13", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-165", "العزيزية", "165", "13", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-170", "العزيزية", "170", "13", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-171", "العزيزية", "171", "14", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-175", "العزيزية", "175", "14", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-176", "العزيزية", "176", "14", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-180", "العزيزية", "180", "14", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-181", "العزيزية", "181", "14", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-185", "العزيزية", "185", "14", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-186", "العزيزية", "186", "14", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-190", "العزيزية", "190", "14", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-191", "العزيزية", "191", "15", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-192", "العزيزية", "192", "15", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-202", "العزيزية", "202", "15", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-203", "العزيزية", "203", "15", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-213", "العزيزية", "213", "15", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-214", "العزيزية", "214", "15", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-215", "العزيزية", "215", "16", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-216", "العزيزية", "216", "16", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-217", "العزيزية", "217", "16", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-220", "العزيزية", "220", "16", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-221", "العزيزية", "221", "16", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-222", "العزيزية", "222", "16", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-223", "العزيزية", "223", "17", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-224", "العزيزية", "224", "17", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-225", "العزيزية", "225", "17", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-226", "العزيزية", "226", "17", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-227", "العزيزية", "227", "17", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-228", "العزيزية", "228", "17", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-231", "العزيزية", "231", "17", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-232", "العزيزية", "232", "17", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-233", "العزيزية", "233", "17", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-234", "العزيزية", "234", "17", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-235", "العزيزية", "235", "18", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["AZ-238", "العزيزية", "238", "18", "B1", "ياسرف", 300, 408.76, 4, 8, 1590000],
+["AZ-239", "العزيزية", "239", "18", "B2", "ياسرف", 300, 392.85, 4, 8, 1590000],
+["NK-002", "النخيل", "002", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-003", "النخيل", "003", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-004", "النخيل", "004", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-005", "النخيل", "005", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-006", "النخيل", "006", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-007", "النخيل", "007", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-008", "النخيل", "008", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-011", "النخيل", "011", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-012", "النخيل", "012", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-013", "النخيل", "013", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-014", "النخيل", "014", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-015", "النخيل", "015", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-016", "النخيل", "016", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-017", "النخيل", "017", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-018", "النخيل", "018", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-019", "النخيل", "019", "01", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-022", "النخيل", "022", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-023", "النخيل", "023", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-024", "النخيل", "024", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-025", "النخيل", "025", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-026", "النخيل", "026", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-027", "النخيل", "027", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-028", "النخيل", "028", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-029", "النخيل", "029", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-030", "النخيل", "030", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-031", "النخيل", "031", "02", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-034", "النخيل", "034", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-035", "النخيل", "035", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-036", "النخيل", "036", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-037", "النخيل", "037", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-038", "النخيل", "038", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-039", "النخيل", "039", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-040", "النخيل", "040", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-043", "النخيل", "043", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-044", "النخيل", "044", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-045", "النخيل", "045", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-046", "النخيل", "046", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-047", "النخيل", "047", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-048", "النخيل", "048", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-049", "النخيل", "049", "03", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-052", "النخيل", "052", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-053", "النخيل", "053", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-054", "النخيل", "054", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-057", "النخيل", "057", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-058", "النخيل", "058", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-059", "النخيل", "059", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-062", "النخيل", "062", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-063", "النخيل", "063", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-064", "النخيل", "064", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-065", "النخيل", "065", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-068", "النخيل", "068", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-069", "النخيل", "069", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-070", "النخيل", "070", "04", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-073", "النخيل", "073", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-074", "النخيل", "074", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-077", "النخيل", "077", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-078", "النخيل", "078", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-083", "النخيل", "083", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-086", "النخيل", "086", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-087", "النخيل", "087", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-090", "النخيل", "090", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-091", "النخيل", "091", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-092", "النخيل", "092", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-093", "النخيل", "093", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-094", "النخيل", "094", "05", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-100", "النخيل", "100", "06", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-103", "النخيل", "103", "06", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-108", "النخيل", "108", "07", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-115", "النخيل", "115", "07", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-118", "النخيل", "118", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-119", "النخيل", "119", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-120", "النخيل", "120", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-121", "النخيل", "121", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-122", "النخيل", "122", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-123", "النخيل", "123", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-126", "النخيل", "126", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-127", "النخيل", "127", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-128", "النخيل", "128", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-129", "النخيل", "129", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-130", "النخيل", "130", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-131", "النخيل", "131", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-132", "النخيل", "132", "08", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-135", "النخيل", "135", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-136", "النخيل", "136", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-137", "النخيل", "137", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-138", "النخيل", "138", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-139", "النخيل", "139", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-140", "النخيل", "140", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-141", "النخيل", "141", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-142", "النخيل", "142", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-143", "النخيل", "143", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-146", "النخيل", "146", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-147", "النخيل", "147", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-148", "النخيل", "148", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-149", "النخيل", "149", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-150", "النخيل", "150", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-151", "النخيل", "151", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-152", "النخيل", "152", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-153", "النخيل", "153", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["NK-154", "النخيل", "154", "09", "A", "ياسرف", 300, 382.76, 3, 7, 1475000],
+["AZ-057", "العزيزية", "057", "05", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-028", "العزيزية", "028", "03", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["AZ-120", "العزيزية", "120", "12", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["AZ-027", "العزيزية", "027", "03", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-052", "العزيزية", "052", "05", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["AZ-019", "العزيزية", "019", "02", "B2", "مرافق", 300, 393, 4, 8, 1590000],
+["AZ-029", "العزيزية", "029", "03", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["AZ-043", "العزيزية", "043", "04", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["AZ-024", "العزيزية", "024", "03", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-061", "العزيزية", "061", "05", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-044", "العزيزية", "044", "04", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["AZ-071", "العزيزية", "071", "07", "B2", "مرافق", 300, 393, 4, 8, 1590000],
+["AZ-114", "العزيزية", "114", "11", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-095", "العزيزية", "095", "09", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-053", "العزيزية", "053", "05", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["AZ-098", "العزيزية", "098", "10", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-111", "العزيزية", "111", "11", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-039", "العزيزية", "039", "04", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-106", "العزيزية", "106", "11", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-060", "العزيزية", "060", "05", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-122", "العزيزية", "122", "12", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-078", "العزيزية", "078", "07", "B2", "مرافق", 300, 393, 4, 8, 1590000],
+["AZ-099", "العزيزية", "099", "10", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-008", "العزيزية", "008", "01", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-107", "العزيزية", "107", "11", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-110", "العزيزية", "110", "11", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-115", "العزيزية", "115", "11", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-084", "العزيزية", "084", "08", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-153", "العزيزية", "153", "13", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-087", "العزيزية", "087", "08", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-017", "العزيزية", "017", "02", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-072", "العزيزية", "072", "07", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-023", "العزيزية", "023", "03", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-132", "العزيزية", "132", "12", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-195", "العزيزية", "195", "15", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-056", "العزيزية", "056", "05", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-075", "العزيزية", "075", "07", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-048", "العزيزية", "048", "04", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-156", "العزيزية", "156", "13", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-119", "العزيزية", "119", "12", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-136", "العزيزية", "136", "12", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-079", "العزيزية", "079", "07", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-177", "العزيزية", "177", "14", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["AZ-102", "العزيزية", "102", "10", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["AZ-127", "العزيزية", "127", "12", "C", "مرافق", 348, 470, 5, 8, 1759000],
+["NK-144", "النخيل", "144", "09", "B2", "مرافق", 300, 393, 4, 8, 1590000],
+["NK-133", "النخيل", "133", "08", "B2", "مرافق", 300, 393, 4, 8, 1590000],
+["NK-095", "النخيل", "095", "05", "A", "مرافق", 300, 383, 3, 7, 1475000],
+["NK-262", "النخيل", "262", "16", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["AZ-011", "العزيزية", "011", "01", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["NK-157", "النخيل", "157", "10", "A", "مرافق", 300, 383, 3, 7, 1475000],
+["AZ-172", "العزيزية", "172", "14", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["NK-230", "النخيل", "230", "14", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["NK-190", "النخيل", "190", "12", "B2", "مرافق", 300, 393, 4, 8, 1590000],
+["NK-215", "النخيل", "215", "14", "B2", "مرافق", 300, 393, 4, 8, 1590000],
+["NK-216", "النخيل", "216", "14", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["NK-041", "النخيل", "041", "03", "B2", "مرافق", 300, 393, 4, 8, 1590000],
+["NK-256", "النخيل", "256", "16", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["NK-177", "النخيل", "177", "11", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["NK-261", "النخيل", "261", "16", "B2", "مرافق", 348, 393, 4, 8, 1614000],
+["NK-174", "النخيل", "174", "10", "A", "مرافق", 300, 383, 3, 7, 1475000],
+["NK-164", "النخيل", "164", "10", "B1", "مرافق", 300, 409, 4, 8, 1590000],
+["NK-032", "النخيل", "032", "02", "B2", "مرافق", 300, 393, 4, 8, 1590000],
+["NK-105", "النخيل", "105", "06", "A", "مرافق", 300, 383, 3, 7, 1475000],
+["NK-176", "النخيل", "176", "11", "B2", "مرافق", 300, 392.85, 4, 8, 1590000],
+["AZ-141", "العزيزية", "141", "12", "C", "مرافق", 348, 470.14, 5, 8, 1759000],
+["AZ-147", "العزيزية", "147", "12", "C", "مرافق", 348, 470.14, 5, 8, 1759000],
+["AZ-012", "العزيزية", "012", "01", "B1", "مرافق", 300, 408.76, 4, 8, 1590000],
+["AZ-020", "العزيزية", "020", "02", "B1", "مرافق", 300, 408.76, 4, 8, 1590000],
+["AZ-199", "العزيزية", "199", "15", "B1", "مرافق", 300, 408.76, 4, 8, 1590000],
+["AZ-103", "العزيزية", "103", "10", "C", "الفارابي", 348, 470, 5, 8, 1759000],
+["NK-228", "النخيل", "228", "14", "B2", "الفارابي", 300, 393, 4, 8, 1590000],
+["NK-060", "النخيل", "060", "04", "B2", "الفارابي", 300, 393, 4, 8, 1590000],
+["NK-075", "النخيل", "075", "05", "A", "الفارابي", 300, 383, 3, 7, 1475000],
+["NK-229", "النخيل", "229", "14", "B2", "الفارابي", 300, 393, 4, 8, 1590000],
+["NK-055", "النخيل", "055", "04", "A", "الفارابي", 300, 383, 3, 7, 1475000],
+["NK-227", "النخيل", "227", "14", "B2", "الفارابي", 300, 393, 4, 8, 1590000],
+["NK-242", "النخيل", "242", "15", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["NK-076", "النخيل", "076", "05", "A", "الفارابي", 300, 383, 3, 7, 1475000],
+["AZ-166", "العزيزية", "166", "13", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["AZ-055", "العزيزية", "055", "05", "C", "الفارابي", 348, 470, 5, 8, 1759000],
+["AZ-126", "العزيزية", "126", "12", "C", "الفارابي", 348, 470, 5, 8, 1759000],
+["AZ-184", "العزيزية", "184", "14", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["NK-241", "النخيل", "241", "15", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["AZ-090", "العزيزية", "090", "08", "C", "الفارابي", 348, 470, 5, 8, 1759000],
+["AZ-138", "العزيزية", "138", "12", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["AZ-137", "العزيزية", "137", "12", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["AZ-123", "العزيزية", "123", "12", "C", "الفارابي", 348, 470, 5, 8, 1759000],
+["NK-165", "النخيل", "165", "10", "B2", "الفارابي", 300, 393, 4, 8, 1590000],
+["AZ-163", "العزيزية", "163", "13", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["AZ-169", "العزيزية", "169", "13", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["NK-209", "النخيل", "209", "13", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["AZ-067", "العزيزية", "067", "06", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["NK-163", "النخيل", "163", "10", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["NK-226", "النخيل", "226", "14", "B2", "الفارابي", 300, 393, 4, 8, 1590000],
+["AZ-189", "العزيزية", "189", "14", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["NK-239", "النخيل", "239", "15", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["NK-240", "النخيل", "240", "15", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["NK-238", "النخيل", "238", "15", "B1", "الفارابي", 300, 409, 4, 8, 1590000],
+["NK-056", "النخيل", "056", "04", "A", "الفارابي", 300, 383, 3, 7, 1475000]
+];
+const MASTER = MASTER_RAW.map(r=>({id:r[0],district:r[1],plot:r[2],block:r[3],model:r[4],company:r[5],plotArea:r[6],builtArea:r[7],bed:r[8],bath:r[9],price:r[10]}));
+const MASTER_BY_ID = Object.fromEntries(MASTER.map(u=>[u.id,u]));
+const COMPANIES = [...new Set(MASTER.map(u=>u.company))];
+const MODELS = [...new Set(MASTER.map(u=>u.model))].sort();
+const DEFAULT_PAY = ['تمويل بنكي','دفع نقدي','تمويل بنكي + دعم سكني','برنامج الشركة','أخرى'];
+const DEFAULT_PINS = {maker:'1111',checker:'2222',admin:'2026'};
+const STATUS_AR = {available:'متاحة',pending:'مبدئي',approved:'معتمد',rejected:'مرفوض',cancelled:'ملغي'};
+const ROLE_AR = {maker:'مُدخل',checker:'مُراجع',admin:'مدير'};
+
+/* ===== Firebase ===== */
+firebase.initializeApp({
+  apiKey:"AIzaSyD1tcC2glbAh-5arxzGxNWB7BHra2Ulmi8", authDomain:"task-board-d3f90.firebaseapp.com",
+  databaseURL:"https://task-board-d3f90-default-rtdb.firebaseio.com", projectId:"task-board-d3f90",
+  storageBucket:"task-board-d3f90.firebasestorage.app", messagingSenderId:"455852977918", appId:"1:455852977918:web:e4446311a1443f6b9abfaf"
+});
+const db = firebase.database();
+const ROOT = db.ref('jabeenBookings');
+
+/* ===== State ===== */
+let bookings = {};        // bid -> booking
+let idxUnit = {};         // unitId -> bid
+let idxNat = {};          // natId -> bid
+let config = {pins:null, lists:null};
+let audit = {};
+let session = null;       // {role,name}
+let selectedUnit = null;
+let hl = -1;
+
+const $ = id=>document.getElementById(id);
+const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n=>n==null?'':Number(n).toLocaleString('en-US');
+const today = ()=>new Date().toISOString().slice(0,10);
+const fmtTime = t=>t?new Date(t).toLocaleString('ar-SA-u-nu-latn',{dateStyle:'short',timeStyle:'short'}):'';
+const sanitizeDigits = s=>String(s||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\D/g,'');
+const validNatId = s=>/^[12]\d{9}$/.test(s);
+const payMethods = ()=> (config.lists && config.lists.payMethods && config.lists.payMethods.length) ? config.lists.payMethods : DEFAULT_PAY;
+async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('jabeen:'+s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',3200)}
+function isActive(b){return b && (b.status==='pending'||b.status==='approved')}
+function activeBookingForUnit(uid){const bid=idxUnit[uid];const b=bid&&bookings[bid];if(isActive(b))return b;return Object.values(bookings).find(x=>x.unitId===uid&&isActive(x))||null}
+function activeBookingForNat(n){const bid=idxNat[n];const b=bid&&bookings[bid];if(isActive(b))return b;return Object.values(bookings).find(x=>x.natId===n&&isActive(x))||null}
+function unitStatus(uid){const b=activeBookingForUnit(uid);return b?b.status:'available'}
+
+/* ===== Theme ===== */
+try{if(localStorage.getItem('jb-theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}
+$('themeBtn').onclick=()=>{const d=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=d?'':'dark';try{localStorage.setItem('jb-theme',d?'light':'dark')}catch(e){}};
+
+/* ===== Connection ===== */
+db.ref('.info/connected').on('value',s=>{const on=!!s.val();$('connDot').className='dot'+(on?' on':'');$('connTxt').textContent=on?'متصل':'غير متصل'});
+
+/* ===== Login ===== */
+ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();fillAdminLists()},e=>{showDbError(e)});
+function showDbError(e){
+  const msg=String(e&&e.message||e);
+  if(/permission/i.test(msg)){
+    $('lgErr').textContent='قاعدة البيانات لا تسمح بالوصول لمسار jabeenBookings. يلزم تحديث قواعد Firebase أولاً.';
+  }
+}
+$('lgBtn').onclick=login; $('lgPin').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+async function login(){
+  const role=$('lgRole').value,name=$('lgName').value.trim(),pin=$('lgPin').value.trim();
+  $('lgErr').textContent='';
+  if(!name){$('lgErr').textContent='اكتب اسمك';return}
+  if(!pin){$('lgErr').textContent='أدخل الرمز السري';return}
+  const stored=config.pins&&config.pins[role];
+  const ok = stored ? (await sha(pin))===stored : pin===DEFAULT_PINS[role];
+  if(!ok){$('lgErr').textContent='الرمز غير صحيح';return}
+  session={role,name};try{sessionStorage.setItem('jb-session',JSON.stringify(session))}catch(e){}
+  enterApp(); if(!stored&&role==='admin')toast('أنت تستخدم الرموز الافتراضية — غيّرها من الإعدادات',true);
+}
+try{const s=JSON.parse(sessionStorage.getItem('jb-session'));if(s&&s.role&&s.name){session=s;enterApp()}}catch(e){}
+$('logoutBtn').onclick=()=>{session=null;try{sessionStorage.removeItem('jb-session')}catch(e){};location.reload()};
+
+function enterApp(){
+  $('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');
+  $('rolePill').classList.remove('hidden');$('rolePill').textContent=`${ROLE_AR[session.role]} · ${session.name}`;
+  if(session.role==='admin')$('adminTab').classList.remove('hidden');
+  if(session.role==='checker'){switchTab('bookings')}
+  startData();
+}
+
+/* ===== Data listeners ===== */
+let started=false;
+function startData(){
+  if(started)return;started=true;
+  ROOT.child('bookings').on('value',s=>{bookings=s.val()||{};renderAll()},showDbError);
+  ROOT.child('idx/unit').on('value',s=>{idxUnit=s.val()||{};renderAll()});
+  ROOT.child('idx/natId').on('value',s=>{idxNat=s.val()||{};renderAll()});
+  ROOT.child('audit').limitToLast(300).on('value',s=>{audit=s.val()||{};renderAudit()});
+}
+function renderAll(){renderStats();refreshUnitCombo();checkSelectedUnit();checkNat();renderBookings();renderUnits();renderExceptions();updateSubmit()}
+
+/* ===== Tabs ===== */
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
+function switchTab(name){document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
+  ['new','bookings','units','exceptions','admin'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name))}
+
+/* ===== Stats ===== */
+function renderStats(){
+  const rows=COMPANIES.map(c=>{const us=MASTER.filter(u=>u.company===c);const st={available:0,pending:0,approved:0};us.forEach(u=>st[unitStatus(u.id)]++);return {c,n:us.length,...st}});
+  const tot=rows.reduce((a,r)=>({n:a.n+r.n,available:a.available+r.available,pending:a.pending+r.pending,approved:a.approved+r.approved}),{n:0,available:0,pending:0,approved:0});
+  $('statsTop').innerHTML=[{c:'إجمالي المشروع',...tot},...rows].map(r=>`<div class="stat"><div class="k">${esc(r.c)}</div><div class="v">${r.available}<span style="font-size:14px;color:var(--muted)"> / ${r.n} متاحة</span></div><div class="s">مبدئي ${r.pending} · معتمد ${r.approved}</div></div>`).join('');
+  const pend=Object.values(bookings).filter(b=>b.status==='pending').length;
+  $('pendBadge').textContent=pend;$('pendBadge').classList.toggle('hidden',!pend);
+}
+
+/* ===== New booking form ===== */
+function fillSelect(sel,vals,first){sel.innerHTML=(first?`<option value="">${first}</option>`:'')+vals.map(v=>`<option>${esc(v)}</option>`).join('')}
+fillSelect($('fCompany'),COMPANIES,'— اختر الشركة —');fillSelect($('bCompany'),COMPANIES,'كل الشركات');fillSelect($('uCompany'),COMPANIES,'كل الشركات');fillSelect($('uModel'),MODELS,'كل النماذج');
+function fillPay(){const cur=$('fPay').value;fillSelect($('fPay'),payMethods(),'— اختر —');$('fPay').value=cur}
+$('fDate').value=today();$('fDate').max=today();
+
+function availableUnits(){
+  const c=$('fCompany').value,d=$('fDistrict').value,q=$('fUnit').value.trim().toUpperCase();
+  return MASTER.filter(u=>u.company===c&&(!d||u.district===d)&&unitStatus(u.id)==='available')
+    .filter(u=>!q||u.id.includes(q)||u.plot.includes(q)||('بلوك '+u.block).includes(q)||u.block===q||u.model.toUpperCase()===q||u.model.toUpperCase().includes(q)).sort((a,b)=>a.id.localeCompare(b.id));
+}
+$('fCompany').onchange=$('fDistrict').onchange=()=>{clearUnit();$('fUnit').disabled=!$('fCompany').value;$('fUnit').value='';if($('fCompany').value){$('fUnit').focus();openList()}};
+$('fUnit').addEventListener('input',()=>{if(selectedUnit&&$('fUnit').value!==selectedUnit.id)clearUnit(true);openList()});
+$('fUnit').addEventListener('focus',openList);
+$('fUnit').addEventListener('keydown',e=>{const opts=[...$('unitList').querySelectorAll('.opt')];
+  if(e.key==='ArrowDown'){hl=Math.min(hl+1,opts.length-1);paintHl(opts);e.preventDefault()}
+  else if(e.key==='ArrowUp'){hl=Math.max(hl-1,0);paintHl(opts);e.preventDefault()}
+  else if(e.key==='Enter'){if(opts[hl])opts[hl].click();else if(opts.length===1)opts[0].click();e.preventDefault()}
+  else if(e.key==='Escape'){closeList()}});
+document.addEventListener('click',e=>{if(!e.target.closest('.combo'))closeList()});
+function paintHl(opts){opts.forEach((o,i)=>o.classList.toggle('hl',i===hl));if(opts[hl])opts[hl].scrollIntoView({block:'nearest'})}
+function openList(){if(!$('fCompany').value)return;const list=availableUnits();hl=-1;
+  $('unitList').innerHTML=list.length?list.slice(0,200).map(u=>`<div class="opt" data-id="${u.id}"><b>${u.id}</b><span>${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model} · ${fmt(u.price)} ر.س</span></div>`).join('')+(list.length>200?`<div class="none">… و${list.length-200} وحدة أخرى، اكتب للتصفية</div>`:''):'<div class="none">لا توجد وحدات متاحة مطابقة</div>';
+  $('unitList').classList.remove('hidden');
+  $('unitList').querySelectorAll('.opt').forEach(o=>o.onclick=()=>selectUnit(o.dataset.id))}
+function closeList(){$('unitList').classList.add('hidden')}
+function refreshUnitCombo(){if(!$('unitList').classList.contains('hidden'))openList()}
+function selectUnit(id){selectedUnit=MASTER_BY_ID[id];$('fUnit').value=id;closeList();
+  $('aDistrict').value=selectedUnit.district;$('aBlock').value=selectedUnit.block;$('aModel').value=selectedUnit.model;
+  $('aRooms').value=`${selectedUnit.bed} غرف / ${selectedUnit.bath} حمامات`;$('aArea').value=`${fmt(selectedUnit.plotArea)} / ${fmt(selectedUnit.builtArea)}`;$('aPrice').value=fmt(selectedUnit.price);
+  checkSelectedUnit();updateSubmit();$('fNatId').focus()}
+function clearUnit(keepText){selectedUnit=null;if(!keepText)$('fUnit').value='';['aDistrict','aBlock','aModel','aRooms','aArea','aPrice'].forEach(i=>$(i).value='');$('unitBanner').innerHTML='';$('unitErr').textContent='';updateSubmit()}
+function checkSelectedUnit(){
+  if(!selectedUnit)return;
+  const b=activeBookingForUnit(selectedUnit.id);
+  if(b){$('unitBanner').innerHTML=`<div class="banner red">⛔ الوحدة ${selectedUnit.id} غير متاحة — محجوزة (${STATUS_AR[b.status]}) باسم ${esc(b.name)}<small>سُجلت بواسطة ${esc(b.maker||'—')} في ${fmtTime(b.createdAt)}. اختر وحدة أخرى.</small></div>`;$('unitErr').textContent='غير متاحة'}
+  else if(selectedUnit.company!==$('fCompany').value){$('unitBanner').innerHTML=`<div class="banner red">⛔ هذه الوحدة مخصصة لشركة ${esc(selectedUnit.company)} وليس ${esc($('fCompany').value)}</div>`;$('unitErr').textContent='تعارض في الشركة'}
+  else {$('unitBanner').innerHTML=`<div class="banner ok">✓ الوحدة ${selectedUnit.id} متاحة للحجز</div>`;$('unitErr').textContent=''}
+}
+$('fNatId').addEventListener('input',()=>{$('fNatId').value=sanitizeDigits($('fNatId').value).slice(0,10);checkNat();updateSubmit()});
+$('fPhone').addEventListener('input',()=>{$('fPhone').value=sanitizeDigits($('fPhone').value).slice(0,10);const v=$('fPhone').value;$('phoneErr').textContent=v&&!/^05\d{8}$/.test(v)?'رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05':'';updateSubmit()});
+['fName','fPay','fDate','fEmp'].forEach(i=>$(i).addEventListener('input',updateSubmit));
+function checkNat(){const v=$('fNatId').value;const el=$('natErr');el.className='err';
+  if(!v){el.textContent='';return false}
+  if(!validNatId(v)){el.textContent=v.length<10?'':'رقم الهوية غير صحيح: 10 أرقام تبدأ بـ 1 أو 2';return false}
+  const b=activeBookingForNat(v);
+  if(b){el.textContent=`⛔ رقم الهوية مسجل على حجز آخر: الوحدة ${b.unitId} (${STATUS_AR[b.status]}) — ${b.name}`;return false}
+  el.className='okm';el.textContent='✓ رقم الهوية غير مكرر';return true}
+function formValid(){
+  return selectedUnit && !$('unitErr').textContent && validNatId($('fNatId').value) && !activeBookingForNat($('fNatId').value)
+    && $('fName').value.trim().length>=3 && $('fPay').value && $('fDate').value && (!$('fPhone').value||/^05\d{8}$/.test($('fPhone').value));
+}
+function updateSubmit(){$('submitBtn').disabled=!formValid()||!session||session.role==='checker'}
+$('resetBtn').onclick=resetForm;
+function resetForm(){clearUnit();['fNatId','fName','fEmp','fPhone','fNotes'].forEach(i=>$(i).value='');$('fPay').value='';$('fDate').value=today();$('natErr').textContent='';$('phoneErr').textContent='';$('formBanner').innerHTML='';updateSubmit()}
+
+$('submitBtn').onclick=async()=>{
+  if(!formValid())return;
+  const u=selectedUnit,natId=$('fNatId').value;
+  const bid=ROOT.child('bookings').push().key;
+  $('submitBtn').disabled=true;$('formBanner').innerHTML='';
+  // 1) atomic claim on the unit
+  const r1=await ROOT.child('idx/unit/'+u.id).transaction(cur=>{if(cur!==null){const b=bookings[cur];if(isActive(b)||!b)return;}return bid});
+  if(!r1.committed){const b=activeBookingForUnit(u.id);$('formBanner').innerHTML=`<div class="banner red">⛔ تعارض: الوحدة ${u.id} حُجزت للتو${b?' باسم '+esc(b.name):''}. لم يُسجَّل الحجز.</div>`;checkSelectedUnit();updateSubmit();return}
+  // 2) atomic claim on the national id
+  const r2=await ROOT.child('idx/natId/'+natId).transaction(cur=>{if(cur!==null){const b=bookings[cur];if(isActive(b)||!b)return;}return bid});
+  if(!r2.committed){await ROOT.child('idx/unit/'+u.id).transaction(cur=>cur===bid?null:undefined);const b=activeBookingForNat(natId);$('formBanner').innerHTML=`<div class="banner red">⛔ تعارض: رقم الهوية مسجل على حجز آخر${b?' (الوحدة '+b.unitId+')':''}. لم يُسجَّل الحجز.</div>`;checkNat();updateSubmit();return}
+  const now=Date.now();
+  const booking={unitId:u.id,district:u.district,block:u.block,model:u.model,company:u.company,price:u.price,plot:u.plot,
+    natId,name:$('fName').value.trim(),empNo:$('fEmp').value.trim(),phone:$('fPhone').value.trim(),payMethod:$('fPay').value,bookingDate:$('fDate').value,notes:$('fNotes').value.trim(),
+    status:'pending',maker:session.name,makerRole:session.role,createdAt:now,source:'النظام'};
+  await ROOT.child('bookings/'+bid).set(booking);
+  log('إنشاء حجز مبدئي',u.id,bid,booking.name);
+  toast(`تم تسجيل الحجز المبدئي للوحدة ${u.id}`);resetForm();
+};
+
+/* ===== Audit ===== */
+function log(action,unitId,bid,details){ROOT.child('audit').push({at:Date.now(),who:session?session.name:'',role:session?session.role:'',action,unitId:unitId||'',bid:bid||'',details:details||''})}
+function renderAudit(){const rows=Object.values(audit).sort((a,b)=>b.at-a.at);$('auditBody').innerHTML=rows.map(a=>`<tr><td>${fmtTime(a.at)}</td><td>${esc(a.who)}</td><td>${ROLE_AR[a.role]||''}</td><td>${esc(a.action)}</td><td class="mono">${esc(a.unitId)}</td><td>${esc(a.details)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">لا توجد حركات</td></tr>'}
+
+/* ===== Bookings table ===== */
+['bSearch','bStatus','bCompany'].forEach(i=>$(i).addEventListener('input',renderBookings));
+function filteredBookings(){const q=$('bSearch').value.trim().toLowerCase(),st=$('bStatus').value,c=$('bCompany').value;
+  return Object.entries(bookings).map(([bid,b])=>({bid,...b})).filter(b=>(!st||b.status===st)&&(!c||b.company===c)&&(!q||[b.name,b.natId,b.unitId,b.empNo,b.phone,b.maker].some(v=>String(v||'').toLowerCase().includes(q)))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
+function renderBookings(){
+  const rows=filteredBookings();$('bCount').textContent=`${rows.length} حجز`;
+  $('bBody').innerHTML=rows.map((b,i)=>`<tr><td>${i+1}</td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.block)}</td><td>${esc(b.model)}</td><td>${esc(b.company)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td class="mono">${esc(b.phone)}</td><td>${esc(b.payMethod)}</td><td>${esc(b.bookingDate)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:220px">${esc(b.rejectReason)}</div>`:''}</td><td>${actionsFor(b)}</td></tr>`).join('')||'<tr><td colspan="15" class="muted">لا توجد حجوزات</td></tr>';
+  $('bBody').querySelectorAll('[data-act]').forEach(btn=>btn.onclick=()=>doAction(btn.dataset.act,btn.dataset.bid));
+}
+function actionsFor(b){const r=session.role;let h=`<button class="btn sec sm" data-act="view" data-bid="${b.bid}">عرض</button> `;
+  if(b.status==='pending'&&(r==='checker'||r==='admin')){if(b.maker===session.name&&r!=='admin')h+=`<span class="muted" style="font-size:12px">لا يمكن اعتماد حجزك</span>`;else h+=`<button class="btn sm" data-act="approve" data-bid="${b.bid}">اعتماد</button> <button class="btn danger sm" data-act="reject" data-bid="${b.bid}">رفض</button>`}
+  if(b.status==='pending'&&r==='maker'&&b.maker===session.name)h+=`<button class="btn danger sm" data-act="cancel" data-bid="${b.bid}">إلغاء</button>`;
+  if(b.status==='approved'&&r==='admin')h+=`<button class="btn danger sm" data-act="cancel" data-bid="${b.bid}">إلغاء الحجز</button>`;
+  return h}
+async function doAction(act,bid){
+  const b=bookings[bid];if(!b)return;
+  if(act==='view')return showModal(`<h3>حجز الوحدة ${esc(b.unitId)}</h3><div class="kv">
+    <div>الحالة</div><div><span class="st ${b.status}">${STATUS_AR[b.status]}</span></div><div>الحي / البلوك / النموذج</div><div>${esc(b.district)} · ${esc(b.block)} · ${esc(b.model)}</div><div>الشركة</div><div>${esc(b.company)}</div><div>السعر</div><div>${fmt(b.price)} ر.س</div>
+    <div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId)}</div><div>الرقم الوظيفي</div><div>${esc(b.empNo)}</div><div>الجوال</div><div class="mono">${esc(b.phone)}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>ملاحظات</div><div>${esc(b.notes)}</div>
+    <div>المُدخل</div><div>${esc(b.maker)} · ${fmtTime(b.createdAt)}</div><div>المُراجع</div><div>${esc(b.checker||'—')} ${b.checkedAt?'· '+fmtTime(b.checkedAt):''}</div>${b.rejectReason?`<div>السبب</div><div>${esc(b.rejectReason)}</div>`:''}<div>المصدر</div><div>${esc(b.source||'')}</div></div>
+    <div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
+  if(act==='approve'){
+    if(b.maker===session.name&&session.role!=='admin')return toast('لا يمكنك اعتماد حجز أدخلته أنت',true);
+    const dup=Object.entries(bookings).find(([k,x])=>k!==bid&&isActive(x)&&(x.unitId===b.unitId||x.natId===b.natId));
+    if(dup)return toast(`لا يمكن الاعتماد: تعارض مع حجز آخر (${dup[1].unitId} / ${dup[1].natId})`,true);
+    const m=MASTER_BY_ID[b.unitId];if(!m||m.district!==b.district||m.block!==b.block||m.model!==b.model||m.company!==b.company)return toast('بيانات الحجز تختلف عن الجدول الرئيسي — راجع تقرير التدقيق',true);
+    if(!confirm(`اعتماد حجز الوحدة ${b.unitId} باسم ${b.name}؟`))return;
+    await ROOT.child('bookings/'+bid).update({status:'approved',checker:session.name,checkedAt:Date.now()});
+    await ROOT.child('idx/unit/'+b.unitId).set(bid);await ROOT.child('idx/natId/'+b.natId).set(bid);
+    log('اعتماد حجز',b.unitId,bid,b.name);toast('تم الاعتماد')}
+  if(act==='reject'||act==='cancel'){
+    const reason=prompt(act==='reject'?'سبب الرفض:':'سبب الإلغاء:');if(reason===null)return;
+    await ROOT.child('bookings/'+bid).update({status:act==='reject'?'rejected':'cancelled',checker:session.name,checkedAt:Date.now(),rejectReason:reason.trim()});
+    await ROOT.child('idx/unit/'+b.unitId).transaction(c=>c===bid?null:undefined);await ROOT.child('idx/natId/'+b.natId).transaction(c=>c===bid?null:undefined);
+    log(act==='reject'?'رفض حجز':'إلغاء حجز',b.unitId,bid,`${b.name} — ${reason.trim()}`);toast(act==='reject'?'تم الرفض وتحرير الوحدة':'تم الإلغاء وتحرير الوحدة')}
+}
+function showModal(html){$('modalHost').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`}
+function closeModal(){$('modalHost').innerHTML=''}
+$('bExport').onclick=()=>csv('الحجوزات',['الوحدة','الحي','البلوك','النموذج','الشركة','السعر','العميل','الهوية','الرقم الوظيفي','الجوال','طريقة الدفع','تاريخ الحجز','الحالة','المُدخل','المُراجع','سبب','ملاحظات','وقت الإدخال'],
+  filteredBookings().map(b=>[b.unitId,b.district,b.block,b.model,b.company,b.price,b.name,b.natId,b.empNo,b.phone,b.payMethod,b.bookingDate,STATUS_AR[b.status],b.maker,b.checker,b.rejectReason,b.notes,fmtTime(b.createdAt)]));
+
+/* ===== Units table ===== */
+['uSearch','uDistrict','uCompany','uModel','uStatus'].forEach(i=>$(i).addEventListener('input',renderUnits));
+function filteredUnits(){const q=$('uSearch').value.trim().toUpperCase(),d=$('uDistrict').value,c=$('uCompany').value,m=$('uModel').value,st=$('uStatus').value;
+  return MASTER.filter(u=>(!d||u.district===d)&&(!c||u.company===c)&&(!m||u.model===m)&&(!q||u.id.includes(q)||u.plot.includes(q)||u.block===q)&&(!st||unitStatus(u.id)===st))}
+function renderUnits(){const rows=filteredUnits();$('uCount').textContent=`${rows.length} وحدة`;
+  $('uBody').innerHTML=rows.map(u=>{const st=unitStatus(u.id),b=st!=='available'?activeBookingForUnit(u.id):null;
+    return `<tr><td class="mono"><b>${u.id}</b></td><td>${esc(u.district)}</td><td>${u.plot}</td><td>${u.block}</td><td>${u.model}</td><td>${esc(u.company)}</td><td>${u.bed}</td><td>${u.bath}</td><td>${fmt(u.plotArea)}</td><td>${fmt(u.builtArea)}</td><td>${fmt(u.price)}</td><td><span class="st ${st}">${STATUS_AR[st]}</span></td><td>${b?esc(b.name):''}</td></tr>`}).join('')}
+$('uExport').onclick=()=>csv('الوحدات',['رقم الوحدة','الحي','رقم القطعة','البلوك','النموذج','الشركة','غرف','حمامات','مساحة الأرض','مساحة البناء','السعر','الحالة','العميل'],
+  filteredUnits().map(u=>{const st=unitStatus(u.id),b=activeBookingForUnit(u.id);return [u.id,u.district,u.plot,u.block,u.model,u.company,u.bed,u.bath,u.plotArea,u.builtArea,u.price,STATUS_AR[st],b?b.name:'']}));
+
+/* ===== Exceptions report ===== */
+let excRows=[];
+function renderExceptions(){
+  const all=Object.entries(bookings).map(([bid,b])=>({bid,...b}));const act=all.filter(isActive);
+  const groups=[];excRows=[];
+  const byUnit={};act.forEach(b=>(byUnit[b.unitId]=byUnit[b.unitId]||[]).push(b));
+  groups.push({t:'وحدة عليها أكثر من حجز نشط',rows:Object.values(byUnit).filter(a=>a.length>1).flat().map(b=>({b,why:`${byUnit[b.unitId].length} حجوزات على الوحدة`}))});
+  const byNat={};act.forEach(b=>(byNat[b.natId]=byNat[b.natId]||[]).push(b));
+  groups.push({t:'رقم هوية مسجل على أكثر من حجز نشط',rows:Object.values(byNat).filter(a=>a.length>1).flat().map(b=>({b,why:`الهوية مكررة على: ${byNat[b.natId].map(x=>x.unitId).join('، ')}`}))});
+  groups.push({t:'حجوزات بياناتها تختلف عن الجدول الرئيسي',rows:act.map(b=>{const m=MASTER_BY_ID[b.unitId];if(!m)return null;const d=[];if(m.district!==b.district)d.push(`الحي: ${b.district} ≠ ${m.district}`);if(m.block!==b.block)d.push(`البلوك: ${b.block} ≠ ${m.block}`);if(m.model!==b.model)d.push(`النموذج: ${b.model} ≠ ${m.model}`);if(m.company!==b.company)d.push(`الشركة: ${b.company} ≠ ${m.company}`);if(Number(m.price)!==Number(b.price))d.push(`السعر: ${fmt(b.price)} ≠ ${fmt(m.price)}`);return d.length?{b,why:d.join(' | ')}:null}).filter(Boolean)});
+  groups.push({t:'حجوزات لوحدات غير موجودة في الجدول الرئيسي',rows:act.filter(b=>!MASTER_BY_ID[b.unitId]).map(b=>({b,why:'الوحدة غير معرّفة في الماستر'}))});
+  groups.push({t:'أرقام هوية بصيغة غير صحيحة',rows:act.filter(b=>!validNatId(String(b.natId||''))).map(b=>({b,why:'يجب أن تكون 10 أرقام تبدأ بـ 1 أو 2'}))});
+  groups.push({t:'حجوزات ناقصة البيانات',rows:act.filter(b=>!b.name||!b.payMethod||!b.bookingDate).map(b=>({b,why:[!b.name&&'الاسم',!b.payMethod&&'طريقة الدفع',!b.bookingDate&&'تاريخ الحجز'].filter(Boolean).join('، ')+' مفقود'}))});
+  const idxBad=[];Object.entries(idxUnit).forEach(([uid,bid])=>{const b=bookings[bid];if(!isActive(b)||b.unitId!==uid)idxBad.push({b:b?{bid,...b}:{bid,unitId:uid,name:'—',status:'?'},why:`فهرس الوحدة ${uid} يشير لحجز غير نشط`})});
+  Object.entries(idxNat).forEach(([n,bid])=>{const b=bookings[bid];if(!isActive(b)||String(b.natId)!==n)idxBad.push({b:b?{bid,...b}:{bid,unitId:'',natId:n,name:'—',status:'?'},why:`فهرس الهوية ${n} يشير لحجز غير نشط`})});
+  groups.push({t:'مشاكل في فهرس منع التكرار',rows:idxBad,fix:true});
+  const old=Date.now()-3*864e5;groups.push({t:'حجوزات مبدئية متأخرة (أكثر من 3 أيام بدون اعتماد)',rows:all.filter(b=>b.status==='pending'&&b.createdAt<old).map(b=>({b,why:`منذ ${Math.floor((Date.now()-b.createdAt)/864e5)} يوم`})),warn:true});
+  const t0=new Date();t0.setHours(0,0,0,0);const todayRows=all.filter(b=>b.createdAt>=t0.getTime()||b.checkedAt>=t0.getTime());
+  const total=groups.filter(g=>!g.warn).reduce((a,g)=>a+g.rows.length,0);
+  $('excBadge').textContent=total;$('excBadge').classList.toggle('hidden',!total);
+  $('excDate').textContent=`تقرير ${new Date().toLocaleDateString('ar-SA-u-nu-latn',{dateStyle:'full'})} — ${total?total+' استثناء يحتاج مراجعة':'لا توجد استثناءات'} · حركات اليوم: ${todayRows.length}`;
+  let h='';
+  groups.forEach(g=>{h+=`<h4>${esc(g.t)} <span class="n ${g.rows.length?'':'zero'}">${g.rows.length}</span></h4>`;
+    if(g.rows.length){h+=`<div class="tblwrap"><table><thead><tr><th>الوحدة</th><th>العميل</th><th>الهوية</th><th>الشركة</th><th>الحالة</th><th>المُدخل</th><th>المشكلة</th>${g.fix&&session.role==='admin'?'<th></th>':''}</tr></thead><tbody>`;
+      g.rows.forEach(r=>{const b=r.b;excRows.push([g.t,b.unitId,b.name,b.natId,b.company,STATUS_AR[b.status]||b.status,b.maker,r.why]);
+        h+=`<tr><td class="mono">${esc(b.unitId)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td>${esc(b.company)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${esc(b.maker)}</td><td style="white-space:normal">${esc(r.why)}</td>${g.fix&&session.role==='admin'?`<td><button class="btn sec sm" onclick="fixIdx()">إصلاح الفهرس</button></td>`:''}</tr>`});
+      h+='</tbody></table></div>'}});
+  h+=`<h4>حجوزات اليوم (إدخال أو مراجعة) <span class="n zero">${todayRows.length}</span></h4>`;
+  if(todayRows.length)h+=`<div class="tblwrap"><table><thead><tr><th>الوحدة</th><th>العميل</th><th>الشركة</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th>الوقت</th></tr></thead><tbody>${todayRows.sort((a,b)=>(b.checkedAt||b.createdAt)-(a.checkedAt||a.createdAt)).map(b=>`<tr><td class="mono">${esc(b.unitId)}</td><td>${esc(b.name)}</td><td>${esc(b.company)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]}</span></td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}</td><td>${fmtTime(b.checkedAt||b.createdAt)}</td></tr>`).join('')}</tbody></table></div>`;
+  $('excBody').innerHTML=h;
+}
+async function fixIdx(){ // rebuild uniqueness index from active bookings (admin only)
+  if(session.role!=='admin')return;const u={},n={};
+  Object.entries(bookings).forEach(([bid,b])=>{if(!isActive(b))return;if(b.status==='approved'||!u[b.unitId])u[b.unitId]=bid;if(b.status==='approved'||!n[b.natId])n[b.natId]=bid});
+  await ROOT.child('idx').set({unit:u,natId:n});log('إعادة بناء الفهرس','','','');toast('تم إصلاح الفهرس')}
+$('excExport').onclick=()=>csv('تقرير_التدقيق',['نوع الاستثناء','الوحدة','العميل','الهوية','الشركة','الحالة','المُدخل','المشكلة'],excRows);
+
+/* ===== Admin ===== */
+function fillAdminLists(){if($('listPay'))$('listPay').value=payMethods().join('\n')}
+$('savePins').onclick=async()=>{const p={...(config.pins||{})};let n=0;
+  for(const [k,id] of [['maker','pinMaker'],['checker','pinChecker'],['admin','pinAdmin']]){const v=$(id).value.trim();if(v){if(v.length<4)return toast('الرمز 4 أحرف على الأقل',true);p[k]=await sha(v);n++}}
+  if(!n)return toast('لم تدخل أي رمز جديد',true);await ROOT.child('config/pins').set(p);['pinMaker','pinChecker','pinAdmin'].forEach(i=>$(i).value='');log('تغيير الرموز','','',`${n} رمز`);toast('تم حفظ الرموز')};
+$('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!pay.length)return toast('أضف طريقة دفع واحدة على الأقل',true);await ROOT.child('config/lists').set({payMethods:pay});log('تحديث القوائم','','','');toast('تم حفظ القوائم')};
+
+/* ===== CSV ===== */
+function csv(name,head,rows){const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;const body=[head,...rows].map(r=>r.map(q).join(',')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+body],{type:'text/csv;charset=utf-8'}));a.download=`${name}_${today()}.csv`;a.click();URL.revokeObjectURL(a.href)}
+</script>
+</body>
+</html>
