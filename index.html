@@ -213,7 +213,7 @@ tr:hover td{background:var(--hover)}
       <div class="card">
         <h2>الحجوزات</h2>
         <div class="toolbar">
-          <input id="bSearch" placeholder="بحث: اسم / هوية / وحدة…">
+          <input id="bSearch" placeholder="بحث: كود الحجز / اسم / هوية / رقم الوحدة…" style="min-width:300px">
           <select id="bStatus"><option value="">كل الحالات</option><option value="pending">مبدئي (بانتظار الاعتماد)</option><option value="approved">معتمد</option><option value="rejected">مرفوض</option><option value="cancelled">ملغي</option></select>
           <select id="bCompany"><option value="">كل الشركات</option></select>
           <span class="sp"></span>
@@ -221,7 +221,7 @@ tr:hover td{background:var(--hover)}
         </div>
         <div class="count" id="bCount"></div>
         <div class="tblwrap"><table><thead><tr>
-          <th>#</th><th>الوحدة</th><th>الحي</th><th>بلوك</th><th>نموذج</th><th>الشركة</th><th>العميل</th><th>الهوية</th><th>الجوال</th><th>الدفع</th><th>تاريخ الحجز</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th></th>
+          <th>#</th><th>كود الحجز</th><th>الوحدة</th><th>الحي</th><th>بلوك</th><th>نموذج</th><th>الشركة</th><th>العميل</th><th>الهوية</th><th>الجوال</th><th>الدفع</th><th>تاريخ الحجز</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th></th>
         </tr></thead><tbody id="bBody"></tbody></table></div>
       </div>
     </section>
@@ -975,13 +975,19 @@ $('submitBtn').onclick=async()=>{
   // 2) atomic claim on the national id
   const r2=await ROOT.child('idx/natId/'+natId).transaction(cur=>{if(cur!==null){const b=bookings[cur];if(isActive(b)||!b)return;}return bid});
   if(!r2.committed){await ROOT.child('idx/unit/'+u.id).transaction(cur=>cur===bid?null:undefined);const b=activeBookingForNat(natId);$('formBanner').innerHTML=`<div class="banner red">⛔ تعارض: رقم الهوية مسجل على حجز آخر${b?' (الوحدة '+b.unitId+')':''}. لم يُسجَّل الحجز.</div>`;checkNat();updateSubmit();return}
+  const rc=await ROOT.child('counters/booking').transaction(c=>(c||0)+1);
+  const refNo='JB-'+String(rc.snapshot.val()).padStart(5,'0');
   const now=Date.now();
-  const booking={unitId:u.id,district:u.district,block:u.block,model:u.model,company:u.company===UNALLOC?$('fCompany').value:u.company,price:u.price,plot:u.plot,
+  const booking={refNo,unitId:u.id,district:u.district,block:u.block,model:u.model,company:u.company===UNALLOC?$('fCompany').value:u.company,price:u.price,plot:u.plot,
     natId,name:$('fName').value.trim(),empNo:$('fEmp').value.trim(),phone:$('fPhone').value.trim(),payMethod:$('fPay').value,bookingDate:$('fDate').value,notes:$('fNotes').value.trim(),
     status:'pending',maker:session.name,makerRole:session.role,createdAt:now,source:'النظام'};
   await ROOT.child('bookings/'+bid).set(booking);
-  log('إنشاء حجز مبدئي',u.id,bid,booking.name);
-  toast(`تم تسجيل الحجز المبدئي للوحدة ${u.id}`);resetForm();
+  log('إنشاء حجز مبدئي',u.id,bid,`${refNo} — ${booking.name}`);
+  toast(`تم تسجيل الحجز ${refNo}`);resetForm();
+  showModal(`<h3>تم تسجيل الحجز المبدئي</h3><div class="banner ok" style="font-size:26px;justify-content:center;letter-spacing:1px">${refNo}</div>
+    <div class="kv"><div>الوحدة</div><div><b>${esc(u.id)}</b> · ${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model}</div><div>العميل</div><div>${esc(booking.name)}</div><div>الهوية</div><div class="mono">${esc(natId)}</div><div>الشركة</div><div>${esc(booking.company)}</div><div>السعر</div><div>${fmt(u.price)} ر.س</div><div>الحالة</div><div><span class="st pending">مبدئي</span> بانتظار اعتماد المراجع</div></div>
+    <p class="muted" style="font-size:13px">أعطِ العميل كود الحجز هذا؛ هو المرجع في أي مراجعة أو استفسار.</p>
+    <div class="actions"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${refNo}');toast('تم نسخ الكود')">نسخ الكود</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
 };
 
 /* ===== Audit ===== */
@@ -991,10 +997,10 @@ function renderAudit(){const rows=Object.values(audit).sort((a,b)=>b.at-a.at);$(
 /* ===== Bookings table ===== */
 ['bSearch','bStatus','bCompany'].forEach(i=>$(i).addEventListener('input',renderBookings));
 function filteredBookings(){const q=$('bSearch').value.trim().toLowerCase(),st=$('bStatus').value,c=$('bCompany').value;
-  return Object.entries(bookings).map(([bid,b])=>({bid,...b})).filter(b=>(!st||b.status===st)&&(!c||b.company===c)&&(!q||[b.name,b.natId,b.unitId,b.empNo,b.phone,b.maker].some(v=>String(v||'').toLowerCase().includes(q)))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
+  return Object.entries(bookings).map(([bid,b])=>({bid,...b})).filter(b=>(!st||b.status===st)&&(!c||b.company===c)&&(!q||[b.refNo,b.name,b.natId,b.unitId,b.plot,b.empNo,b.phone,b.maker].some(v=>String(v||'').toLowerCase().includes(q)))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
 function renderBookings(){
   const rows=filteredBookings();$('bCount').textContent=`${rows.length} حجز`;
-  $('bBody').innerHTML=rows.map((b,i)=>`<tr><td>${i+1}</td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.block)}</td><td>${esc(b.model)}</td><td>${esc(b.company)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td class="mono">${esc(b.phone)}</td><td>${esc(b.payMethod)}</td><td>${esc(b.bookingDate)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:220px">${esc(b.rejectReason)}</div>`:''}</td><td>${actionsFor(b)}</td></tr>`).join('')||'<tr><td colspan="15" class="muted">لا توجد حجوزات</td></tr>';
+  $('bBody').innerHTML=rows.map((b,i)=>`<tr><td>${i+1}</td><td class="mono"><b>${esc(b.refNo||'')}</b></td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.block)}</td><td>${esc(b.model)}</td><td>${esc(b.company)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td class="mono">${esc(b.phone)}</td><td>${esc(b.payMethod)}</td><td>${esc(b.bookingDate)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:220px">${esc(b.rejectReason)}</div>`:''}</td><td>${actionsFor(b)}</td></tr>`).join('')||'<tr><td colspan="16" class="muted">لا توجد حجوزات</td></tr>';
   $('bBody').querySelectorAll('[data-act]').forEach(btn=>btn.onclick=()=>doAction(btn.dataset.act,btn.dataset.bid));
 }
 function actionsFor(b){const r=session.role;let h=`<button class="btn sec sm" data-act="view" data-bid="${b.bid}">عرض</button> `;
@@ -1004,7 +1010,7 @@ function actionsFor(b){const r=session.role;let h=`<button class="btn sec sm" da
   return h}
 async function doAction(act,bid){
   const b=bookings[bid];if(!b)return;
-  if(act==='view')return showModal(`<h3>حجز الوحدة ${esc(b.unitId)}</h3><div class="kv">
+  if(act==='view')return showModal(`<h3>حجز ${esc(b.refNo||'')} — الوحدة ${esc(b.unitId)}</h3><div class="kv">
     <div>الحالة</div><div><span class="st ${b.status}">${STATUS_AR[b.status]}</span></div><div>الحي / البلوك / النموذج</div><div>${esc(b.district)} · ${esc(b.block)} · ${esc(b.model)}</div><div>الشركة</div><div>${esc(b.company)}</div><div>السعر</div><div>${fmt(b.price)} ر.س</div>
     <div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId)}</div><div>الرقم الوظيفي</div><div>${esc(b.empNo)}</div><div>الجوال</div><div class="mono">${esc(b.phone)}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>ملاحظات</div><div>${esc(b.notes)}</div>
     <div>المُدخل</div><div>${esc(b.maker)} · ${fmtTime(b.createdAt)}</div><div>المُراجع</div><div>${esc(b.checker||'—')} ${b.checkedAt?'· '+fmtTime(b.checkedAt):''}</div>${b.rejectReason?`<div>السبب</div><div>${esc(b.rejectReason)}</div>`:''}<div>المصدر</div><div>${esc(b.source||'')}</div></div>
@@ -1026,8 +1032,8 @@ async function doAction(act,bid){
 }
 function showModal(html){$('modalHost').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`}
 function closeModal(){$('modalHost').innerHTML=''}
-$('bExport').onclick=()=>csv('الحجوزات',['الوحدة','الحي','البلوك','النموذج','الشركة','السعر','العميل','الهوية','الرقم الوظيفي','الجوال','طريقة الدفع','تاريخ الحجز','الحالة','المُدخل','المُراجع','سبب','ملاحظات','وقت الإدخال'],
-  filteredBookings().map(b=>[b.unitId,b.district,b.block,b.model,b.company,b.price,b.name,b.natId,b.empNo,b.phone,b.payMethod,b.bookingDate,STATUS_AR[b.status],b.maker,b.checker,b.rejectReason,b.notes,fmtTime(b.createdAt)]));
+$('bExport').onclick=()=>csv('الحجوزات',['كود الحجز','الوحدة','الحي','البلوك','النموذج','الشركة','السعر','العميل','الهوية','الرقم الوظيفي','الجوال','طريقة الدفع','تاريخ الحجز','الحالة','المُدخل','المُراجع','سبب','ملاحظات','وقت الإدخال'],
+  filteredBookings().map(b=>[b.refNo,b.unitId,b.district,b.block,b.model,b.company,b.price,b.name,b.natId,b.empNo,b.phone,b.payMethod,b.bookingDate,STATUS_AR[b.status],b.maker,b.checker,b.rejectReason,b.notes,fmtTime(b.createdAt)]));
 
 /* ===== Units table ===== */
 ['uSearch','uDistrict','uCompany','uModel','uStatus'].forEach(i=>$(i).addEventListener('input',renderUnits));
@@ -1035,7 +1041,7 @@ function filteredUnits(){const q=$('uSearch').value.trim().toUpperCase(),d=$('uD
   return MASTER.filter(u=>(!d||u.district===d)&&(!c||u.company===c)&&(!m||u.model===m)&&(!q||u.id.includes(q)||u.plot.includes(q)||u.block===q)&&(!st||unitStatus(u.id)===st))}
 function renderUnits(){const rows=filteredUnits();$('uCount').textContent=`${rows.length} وحدة`;
   $('uBody').innerHTML=rows.map(u=>{const st=unitStatus(u.id),b=st!=='available'?activeBookingForUnit(u.id):null;
-    return `<tr><td class="mono"><b>${u.id}</b></td><td>${esc(u.district)}</td><td>${u.plot}</td><td>${u.block}</td><td>${u.model}</td><td>${esc(u.company)}</td><td>${u.bed}</td><td>${u.bath}</td><td>${fmt(u.plotArea)}</td><td>${fmt(u.builtArea)}</td><td>${fmt(u.price)}</td><td><span class="st ${st}">${STATUS_AR[st]}</span></td><td>${b?esc(b.name):''}</td></tr>`}).join('')}
+    return `<tr><td class="mono"><b>${u.id}</b></td><td>${esc(u.district)}</td><td>${u.plot}</td><td>${u.block}</td><td>${u.model}</td><td>${esc(u.company)}</td><td>${u.bed}</td><td>${u.bath}</td><td>${fmt(u.plotArea)}</td><td>${fmt(u.builtArea)}</td><td>${fmt(u.price)}</td><td><span class="st ${st}">${STATUS_AR[st]}</span></td><td>${b?esc(b.name)+(b.refNo?' <span class="mono muted">'+esc(b.refNo)+'</span>':''):''}</td></tr>`}).join('')}
 $('uExport').onclick=()=>csv('الوحدات',['رقم الوحدة','الحي','رقم القطعة','البلوك','النموذج','الشركة','غرف','حمامات','مساحة الأرض','مساحة البناء','السعر','الحالة','العميل'],
   filteredUnits().map(u=>{const st=unitStatus(u.id),b=activeBookingForUnit(u.id);return [u.id,u.district,u.plot,u.block,u.model,u.company,u.bed,u.bath,u.plotArea,u.builtArea,u.price,STATUS_AR[st],b?b.name:'']}));
 
