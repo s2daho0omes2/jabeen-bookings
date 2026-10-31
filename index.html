@@ -192,18 +192,19 @@ tr:hover td{background:var(--hover)}
       <div class="stats hidden" id="statsTop"></div>
       <div class="card">
         <h2>تسجيل حجز جديد</h2>
-        <div class="hint">اختر الشركة ثم رقم الوحدة فقط؛ الحي والبلوك والنموذج والسعر تُعبَّأ تلقائياً من الجدول الرئيسي ولا يمكن تعديلها. الوحدات المحجوزة لا تظهر في القائمة.</div>
+        <div class="hint">اختر الشركة والحي ثم اكتب رقم القطعة فقط؛ رقم الوحدة والبلوك والنموذج والسعر تُعبَّأ تلقائياً من الجدول الرئيسي ولا يمكن تعديلها. الوحدات المحجوزة لا تظهر في القائمة.</div>
         <div class="grid">
           <div class="f"><label>الشركة <span class="req">*</span></label><select id="fCompany"><option value="">— اختر الشركة —</option></select></div>
-          <div class="f"><label>الحي (تصفية اختيارية)</label><select id="fDistrict"><option value="">الكل</option></select></div>
-          <div class="f combo" style="grid-column:span 2"><label>رقم الوحدة <span class="req">*</span></label>
-            <input id="fUnit" placeholder="ابحث برقم الوحدة أو البلوك أو النموذج…" autocomplete="off" disabled>
+          <div class="f"><label>الحي <span class="req">*</span></label><select id="fDistrict"><option value="">— اختر الحي —</option></select></div>
+          <div class="f combo"><label>رقم القطعة <span class="req">*</span></label>
+            <input id="fUnit" inputmode="numeric" placeholder="مثال: 57" autocomplete="off" disabled>
             <div class="list hidden" id="unitList"></div>
             <div class="err" id="unitErr"></div>
           </div>
         </div>
         <div id="unitBanner"></div>
         <div class="grid" style="margin-top:8px">
+          <div class="f"><label>رقم الوحدة</label><input id="aUnitId" readonly></div>
           <div class="f"><label>الحي</label><input id="aDistrict" readonly></div>
           <div class="f"><label>البلوك</label><input id="aBlock" readonly></div>
           <div class="f"><label>النموذج</label><input id="aModel" readonly></div>
@@ -953,37 +954,43 @@ function renderStats(){
 /* ===== New booking form ===== */
 function fillSelect(sel,vals,first){sel.innerHTML=(first?`<option value="">${first}</option>`:'')+vals.map(v=>`<option>${esc(v)}</option>`).join('')}
 const DIST_IN_MASTER=Object.values(DISTRICTS).filter(d=>MASTER.some(u=>u.district===d));
-fillSelect($('fDistrict'),DIST_IN_MASTER,'الكل');fillSelect($('uDistrict'),DIST_IN_MASTER,'كل الأحياء');
+fillSelect($('fDistrict'),DIST_IN_MASTER,'— اختر الحي —');fillSelect($('uDistrict'),DIST_IN_MASTER,'كل الأحياء');
 fillSelect($('fCompany'),COMPANIES,'— اختر الشركة —');fillSelect($('bCompany'),COMPANIES,'كل الشركات');fillSelect($('uCompany'),[...COMPANIES,UNALLOC],'كل الشركات');fillSelect($('uModel'),MODELS,'كل النماذج');
 function fillPay(){const cur=$('fPay').value;fillSelect($('fPay'),payMethods(),'— اختر —');$('fPay').value=cur}
 $('fDate').value=today();$('fDate').max=today();
 
 function availableUnits(){
-  const c=$('fCompany').value,d=$('fDistrict').value,q=$('fUnit').value.trim().toUpperCase();
-  return MASTER.filter(u=>(u.company===c||u.company===UNALLOC)&&(!d||u.district===d)&&unitStatus(u.id)==='available')
-    .filter(u=>!q||u.id.includes(q)||u.plot.includes(q)||('بلوك '+u.block).includes(q)||u.block===q||u.model.toUpperCase()===q||u.model.toUpperCase().includes(q)).sort((a,b)=>a.id.localeCompare(b.id));
+  const c=$('fCompany').value,d=$('fDistrict').value,q=sanitizeDigits($('fUnit').value);
+  if(!c||!d)return [];
+  return MASTER.filter(u=>(u.company===c||u.company===UNALLOC)&&u.district===d&&unitStatus(u.id)==='available')
+    .filter(u=>!q||String(parseInt(u.plot,10)).startsWith(String(parseInt(q,10)))).sort((a,b)=>a.id.localeCompare(b.id));
 }
-$('fCompany').onchange=$('fDistrict').onchange=()=>{clearUnit();$('fUnit').disabled=!$('fCompany').value;$('fUnit').value='';if($('fCompany').value){$('fUnit').focus();openList()}};
-$('fUnit').addEventListener('input',()=>{if(selectedUnit&&$('fUnit').value!==selectedUnit.id)clearUnit(true);openList()});
+$('fCompany').onchange=$('fDistrict').onchange=()=>{clearUnit();const ready=$('fCompany').value&&$('fDistrict').value;$('fUnit').disabled=!ready;$('fUnit').value='';if(ready){$('fUnit').focus();openList()}};
+$('fUnit').addEventListener('input',()=>{$('fUnit').value=sanitizeDigits($('fUnit').value).slice(0,3);const q=$('fUnit').value;
+  if(selectedUnit&&parseInt(q||'0',10)!==parseInt(selectedUnit.plot,10))clearUnit(true);
+  if(q){const id=(DISTRICT_CODE[$('fDistrict').value]||'')+'-'+q.padStart(3,'0');const u=MASTER_BY_ID[id];
+    if(u){if(!selectedUnit||selectedUnit.id!==id)selectUnit(id,true);return}
+    if(q.length===3||parseInt(q,10)>99){$('unitErr').textContent=`لا توجد قطعة رقم ${parseInt(q,10)} في ${$('fDistrict').value}`;closeList();return}}
+  openList()});
 $('fUnit').addEventListener('focus',openList);
 $('fUnit').addEventListener('keydown',e=>{const opts=[...$('unitList').querySelectorAll('.opt')];
   if(e.key==='ArrowDown'){hl=Math.min(hl+1,opts.length-1);paintHl(opts);e.preventDefault()}
   else if(e.key==='ArrowUp'){hl=Math.max(hl-1,0);paintHl(opts);e.preventDefault()}
-  else if(e.key==='Enter'){if(opts[hl])opts[hl].click();else if(opts.length===1)opts[0].click();e.preventDefault()}
+  else if(e.key==='Enter'){if(opts[hl])opts[hl].click();else if(opts.length===1)opts[0].click();else if(selectedUnit){closeList();$('fNatId').focus()}e.preventDefault()}
   else if(e.key==='Escape'){closeList()}});
 document.addEventListener('click',e=>{if(!e.target.closest('.combo'))closeList()});
 function paintHl(opts){opts.forEach((o,i)=>o.classList.toggle('hl',i===hl));if(opts[hl])opts[hl].scrollIntoView({block:'nearest'})}
-function openList(){if(!$('fCompany').value)return;const list=availableUnits();hl=-1;
-  $('unitList').innerHTML=list.length?list.slice(0,200).map(u=>`<div class="opt" data-id="${u.id}"><b>${u.id}</b><span>${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model} · ${fmt(u.price)} ر.س${u.company===UNALLOC?' · غير مخصصة':''}</span></div>`).join('')+(list.length>200?`<div class="none">… و${list.length-200} وحدة أخرى، اكتب للتصفية</div>`:''):'<div class="none">لا توجد وحدات متاحة مطابقة</div>';
+function openList(){if(!$('fCompany').value||!$('fDistrict').value)return;const list=availableUnits();hl=-1;
+  $('unitList').innerHTML=list.length?list.slice(0,200).map(u=>`<div class="opt" data-id="${u.id}"><b>قطعة ${parseInt(u.plot,10)} <span class="muted" style="font-weight:500">(${u.id})</span></b><span>${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model} · ${fmt(u.price)} ر.س${u.company===UNALLOC?' · غير مخصصة':''}</span></div>`).join('')+(list.length>200?`<div class="none">… و${list.length-200} وحدة أخرى، اكتب للتصفية</div>`:''):'<div class="none">لا توجد قطع متاحة مطابقة</div>';
   $('unitList').classList.remove('hidden');
   $('unitList').querySelectorAll('.opt').forEach(o=>o.onclick=()=>selectUnit(o.dataset.id))}
 function closeList(){$('unitList').classList.add('hidden')}
 function refreshUnitCombo(){if(!$('unitList').classList.contains('hidden'))openList()}
-function selectUnit(id){selectedUnit=MASTER_BY_ID[id];$('fUnit').value=id;closeList();
-  $('aDistrict').value=selectedUnit.district;$('aBlock').value=selectedUnit.block;$('aModel').value=selectedUnit.model;
+function selectUnit(id,keepFocus){selectedUnit=MASTER_BY_ID[id];$('fUnit').value=String(parseInt(selectedUnit.plot,10));closeList();
+  $('aUnitId').value=selectedUnit.id;$('aDistrict').value=selectedUnit.district;$('aBlock').value=selectedUnit.block;$('aModel').value=selectedUnit.model;
   $('aRooms').value=`${selectedUnit.bed} غرف / ${selectedUnit.bath} حمامات`;$('aArea').value=`${fmt(selectedUnit.plotArea)} / ${fmt(selectedUnit.builtArea)}`;$('aPrice').value=fmt(selectedUnit.price);
-  checkSelectedUnit();updateSubmit();$('fNatId').focus()}
-function clearUnit(keepText){selectedUnit=null;if(!keepText)$('fUnit').value='';['aDistrict','aBlock','aModel','aRooms','aArea','aPrice'].forEach(i=>$(i).value='');$('unitBanner').innerHTML='';$('unitErr').textContent='';updateSubmit()}
+  checkSelectedUnit();updateSubmit();if(!keepFocus)$('fNatId').focus()}
+function clearUnit(keepText){selectedUnit=null;if(!keepText)$('fUnit').value='';['aUnitId','aDistrict','aBlock','aModel','aRooms','aArea','aPrice'].forEach(i=>$(i).value='');$('unitBanner').innerHTML='';$('unitErr').textContent='';updateSubmit()}
 function checkSelectedUnit(){
   if(!selectedUnit)return;
   const b=activeBookingForUnit(selectedUnit.id);
@@ -1120,7 +1127,7 @@ function showUnit(id){const u=MASTER_BY_ID[id];const b=activeBookingForUnit(id);
   h+=`<button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;showModal(h)}
 function bookFromMap(id){const u=MASTER_BY_ID[id];switchTab('new');resetForm();
   $('fCompany').value=u.company===UNALLOC?($('fCompany').value||COMPANIES[0]):u.company;$('fCompany').dispatchEvent(new Event('change'));
-  $('fDistrict').value='';selectUnit(id)}
+  $('fDistrict').value=u.district;$('fDistrict').dispatchEvent(new Event('change'));selectUnit(id)}
 function applyZoom(){$('mapinner').style.width=(mapZoom*100)+'%'}
 new ResizeObserver(()=>{const w=$('mapinner').clientWidth;$('mapinner').style.setProperty('--mk',Math.max(14,w*0.0135)+'px')}).observe($('mapinner'));
 $('zoomIn').onclick=()=>{mapZoom=Math.min(4,mapZoom*1.4);applyZoom()};$('zoomOut').onclick=()=>{mapZoom=Math.max(1,mapZoom/1.4);applyZoom()};$('zoomReset').onclick=()=>{mapZoom=1;applyZoom()};
