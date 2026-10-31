@@ -976,7 +976,7 @@ $('submitBtn').onclick=async()=>{
   const r2=await ROOT.child('idx/natId/'+natId).transaction(cur=>{if(cur!==null){const b=bookings[cur];if(isActive(b)||!b)return;}return bid});
   if(!r2.committed){await ROOT.child('idx/unit/'+u.id).transaction(cur=>cur===bid?null:undefined);const b=activeBookingForNat(natId);$('formBanner').innerHTML=`<div class="banner red">⛔ تعارض: رقم الهوية مسجل على حجز آخر${b?' (الوحدة '+b.unitId+')':''}. لم يُسجَّل الحجز.</div>`;checkNat();updateSubmit();return}
   const rc=await ROOT.child('counters/booking').transaction(c=>(c||0)+1);
-  const refNo='JB-'+String(rc.snapshot.val()).padStart(5,'0');
+  const refNo='JB-'+(u.district==='العزيزية'?'AZ':'NK')+'-'+String(rc.snapshot.val()).padStart(5,'0');
   const now=Date.now();
   const booking={refNo,unitId:u.id,district:u.district,block:u.block,model:u.model,company:u.company===UNALLOC?$('fCompany').value:u.company,price:u.price,plot:u.plot,
     natId,name:$('fName').value.trim(),empNo:$('fEmp').value.trim(),phone:$('fPhone').value.trim(),payMethod:$('fPay').value,bookingDate:$('fDate').value,notes:$('fNotes').value.trim(),
