@@ -631,6 +631,7 @@ const payMethods = ()=> (config.lists && config.lists.payMethods && config.lists
 async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('jabeen:'+s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',3200)}
 function isActive(b){return b && (b.status==='pending'||b.status==='approved')}
+function isAlloc(b){return !!b && !b.natId && /تخصيص/.test(b.source||'')}
 function activeBookingForUnit(uid){const bid=idxUnit[uid];const b=bid&&bookings[bid];if(isActive(b))return b;return Object.values(bookings).find(x=>x.unitId===uid&&isActive(x))||null}
 function activeBookingForNat(n){const bid=idxNat[n];const b=bid&&bookings[bid];if(isActive(b))return b;return Object.values(bookings).find(x=>x.natId===n&&isActive(x))||null}
 function unitStatus(uid){const b=activeBookingForUnit(uid);return b?b.status:'available'}
@@ -802,17 +803,17 @@ async function doAction(act,bid){
     <div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
   if(act==='approve'){
     if(b.maker===session.name&&session.role!=='admin')return toast('لا يمكنك اعتماد حجز أدخلته أنت',true);
-    const dup=Object.entries(bookings).find(([k,x])=>k!==bid&&isActive(x)&&(x.unitId===b.unitId||x.natId===b.natId));
+    const dup=Object.entries(bookings).find(([k,x])=>k!==bid&&isActive(x)&&(x.unitId===b.unitId||(b.natId&&x.natId===b.natId)));
     if(dup)return toast(`لا يمكن الاعتماد: تعارض مع حجز آخر (${dup[1].unitId} / ${dup[1].natId})`,true);
     const m=MASTER_BY_ID[b.unitId];if(!m||m.district!==b.district||m.block!==b.block||m.model!==b.model||m.company!==b.company)return toast('بيانات الحجز تختلف عن الجدول الرئيسي — راجع تقرير التدقيق',true);
     if(!confirm(`اعتماد حجز الوحدة ${b.unitId} باسم ${b.name}؟`))return;
     await ROOT.child('bookings/'+bid).update({status:'approved',checker:session.name,checkedAt:Date.now()});
-    await ROOT.child('idx/unit/'+b.unitId).set(bid);await ROOT.child('idx/natId/'+b.natId).set(bid);
+    await ROOT.child('idx/unit/'+b.unitId).set(bid);if(b.natId)await ROOT.child('idx/natId/'+b.natId).set(bid);
     log('اعتماد حجز',b.unitId,bid,b.name);toast('تم الاعتماد')}
   if(act==='reject'||act==='cancel'){
     const reason=prompt(act==='reject'?'سبب الرفض:':'سبب الإلغاء:');if(reason===null)return;
     await ROOT.child('bookings/'+bid).update({status:act==='reject'?'rejected':'cancelled',checker:session.name,checkedAt:Date.now(),rejectReason:reason.trim()});
-    await ROOT.child('idx/unit/'+b.unitId).transaction(c=>c===bid?null:undefined);await ROOT.child('idx/natId/'+b.natId).transaction(c=>c===bid?null:undefined);
+    await ROOT.child('idx/unit/'+b.unitId).transaction(c=>c===bid?null:undefined);if(b.natId)await ROOT.child('idx/natId/'+b.natId).transaction(c=>c===bid?null:undefined);
     log(act==='reject'?'رفض حجز':'إلغاء حجز',b.unitId,bid,`${b.name} — ${reason.trim()}`);toast(act==='reject'?'تم الرفض وتحرير الوحدة':'تم الإلغاء وتحرير الوحدة')}
 }
 function showModal(html){$('modalHost').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`}
@@ -841,8 +842,8 @@ function renderExceptions(){
   groups.push({t:'رقم هوية مسجل على أكثر من حجز نشط',rows:Object.values(byNat).filter(a=>a.length>1).flat().map(b=>({b,why:`الهوية مكررة على: ${byNat[b.natId].map(x=>x.unitId).join('، ')}`}))});
   groups.push({t:'حجوزات بياناتها تختلف عن الجدول الرئيسي',rows:act.map(b=>{const m=MASTER_BY_ID[b.unitId];if(!m)return null;const d=[];if(m.district!==b.district)d.push(`الحي: ${b.district} ≠ ${m.district}`);if(m.block!==b.block)d.push(`البلوك: ${b.block} ≠ ${m.block}`);if(m.model!==b.model)d.push(`النموذج: ${b.model} ≠ ${m.model}`);if(m.company!==b.company)d.push(`الشركة: ${b.company} ≠ ${m.company}`);if(Number(m.price)!==Number(b.price))d.push(`السعر: ${fmt(b.price)} ≠ ${fmt(m.price)}`);return d.length?{b,why:d.join(' | ')}:null}).filter(Boolean)});
   groups.push({t:'حجوزات لوحدات غير موجودة في الجدول الرئيسي',rows:act.filter(b=>!MASTER_BY_ID[b.unitId]).map(b=>({b,why:'الوحدة غير معرّفة في الماستر'}))});
-  groups.push({t:'أرقام هوية بصيغة غير صحيحة',rows:act.filter(b=>!validNatId(String(b.natId||''))).map(b=>({b,why:'يجب أن تكون 10 أرقام تبدأ بـ 1 أو 2'}))});
-  groups.push({t:'حجوزات ناقصة البيانات',rows:act.filter(b=>!b.name||!b.payMethod||!b.bookingDate).map(b=>({b,why:[!b.name&&'الاسم',!b.payMethod&&'طريقة الدفع',!b.bookingDate&&'تاريخ الحجز'].filter(Boolean).join('، ')+' مفقود'}))});
+  groups.push({t:'أرقام هوية بصيغة غير صحيحة',rows:act.filter(b=>!isAlloc(b)&&!validNatId(String(b.natId||''))).map(b=>({b,why:'يجب أن تكون 10 أرقام تبدأ بـ 1 أو 2'}))});
+  groups.push({t:'حجوزات ناقصة البيانات',rows:act.filter(b=>!isAlloc(b)&&(!b.name||!b.payMethod||!b.bookingDate)).map(b=>({b,why:[!b.name&&'الاسم',!b.payMethod&&'طريقة الدفع',!b.bookingDate&&'تاريخ الحجز'].filter(Boolean).join('، ')+' مفقود'}))});
   const idxBad=[];Object.entries(idxUnit).forEach(([uid,bid])=>{const b=bookings[bid];if(!isActive(b)||b.unitId!==uid)idxBad.push({b:b?{bid,...b}:{bid,unitId:uid,name:'—',status:'?'},why:`فهرس الوحدة ${uid} يشير لحجز غير نشط`})});
   Object.entries(idxNat).forEach(([n,bid])=>{const b=bookings[bid];if(!isActive(b)||String(b.natId)!==n)idxBad.push({b:b?{bid,...b}:{bid,unitId:'',natId:n,name:'—',status:'?'},why:`فهرس الهوية ${n} يشير لحجز غير نشط`})});
   groups.push({t:'مشاكل في فهرس منع التكرار',rows:idxBad,fix:true});
@@ -863,7 +864,7 @@ function renderExceptions(){
 }
 async function fixIdx(){ // rebuild uniqueness index from active bookings (admin only)
   if(session.role!=='admin')return;const u={},n={};
-  Object.entries(bookings).forEach(([bid,b])=>{if(!isActive(b))return;if(b.status==='approved'||!u[b.unitId])u[b.unitId]=bid;if(b.status==='approved'||!n[b.natId])n[b.natId]=bid});
+  Object.entries(bookings).forEach(([bid,b])=>{if(!isActive(b))return;if(b.status==='approved'||!u[b.unitId])u[b.unitId]=bid;if(b.natId&&(b.status==='approved'||!n[b.natId]))n[b.natId]=bid});
   await ROOT.child('idx').set({unit:u,natId:n});log('إعادة بناء الفهرس','','','');toast('تم إصلاح الفهرس')}
 $('excExport').onclick=()=>csv('تقرير_التدقيق',['نوع الاستثناء','الوحدة','العميل','الهوية','الشركة','الحالة','المُدخل','المشكلة'],excRows);
 
