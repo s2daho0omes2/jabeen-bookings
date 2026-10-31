@@ -123,9 +123,11 @@ tr:hover td{background:var(--hover)}
 .mapwrap.drag{cursor:grabbing}
 .mapinner{position:relative;width:100%}
 .mapinner img{display:block;width:100%;height:auto}
-.mk{position:absolute;width:1.15%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);border:2px solid;box-sizing:border-box;cursor:pointer;transition:transform .1s}
+.mapinner{--mk:16px}
+.mk{position:absolute;width:var(--mk);height:var(--mk);border-radius:50%;transform:translate(-50%,-50%);border:2px solid;box-sizing:border-box;cursor:pointer;transition:transform .1s;display:flex;align-items:center;justify-content:center;font-size:calc(var(--mk)*.46);font-weight:800;line-height:1;color:#fff;font-family:Arial,sans-serif;letter-spacing:-.5px;text-shadow:0 0 2px rgba(0,0,0,.6)}
+.mk.available{color:#222;text-shadow:none}
 .mk:hover{transform:translate(-50%,-50%) scale(1.5);z-index:5}
-.mk.pending::after{content:'';position:absolute;inset:28%;border-radius:50%;background:#fff}
+.mk.pending{background-image:radial-gradient(circle,#fff 0 30%,transparent 31%)!important}
 .mk.hit{box-shadow:0 0 0 5px rgba(255,0,0,.75);z-index:6}
 /* login */
 .login{max-width:440px;margin:60px auto}
@@ -1104,7 +1106,7 @@ function renderMarkers(){
   if(!mapDistrict)return;const us=MASTER.filter(u=>u.district===mapDistrict&&u.x!=null);let st={available:0,pending:0,approved:0};
   const shown=us.filter(u=>(!mapFilter.company||u.company===mapFilter.company)&&(!mapFilter.status||unitStatus(u.id)===mapFilter.status));
   $('markers').innerHTML=us.map(u=>{const s=unitStatus(u.id);const vis=shown.includes(u);if(vis)st[s]++;const c=COMPANY_COLOR[u.company]||'#999';
-    return `<div class="mk ${s}${vis?'':' dim'}" data-id="${u.id}" title="${u.id} · بلوك ${u.block} · ${u.model} · ${esc(u.company)} · ${STATUS_AR[s]}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.75)':c}"></div>`}).join('');
+    return `<div class="mk ${s}${vis?'':' dim'}" data-id="${u.id}" title="${u.id} · بلوك ${u.block} · ${u.model} · ${esc(u.company)} · ${STATUS_AR[s]}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
   $('markers').querySelectorAll('.mk').forEach(m=>m.onclick=e=>{e.stopPropagation();showUnit(m.dataset.id)});
   const fl=[mapFilter.company,mapFilter.status&&STATUS_AR[mapFilter.status]].filter(Boolean).join(' · ');
   $('mapCount').textContent=`${shown.length} فيلا في ${mapDistrict}${fl?' ('+fl+')':''}: متاحة ${st.available} · مبدئي ${st.pending} · معتمد ${st.approved}`;
@@ -1120,6 +1122,7 @@ function bookFromMap(id){const u=MASTER_BY_ID[id];switchTab('new');resetForm();
   $('fCompany').value=u.company===UNALLOC?($('fCompany').value||COMPANIES[0]):u.company;$('fCompany').dispatchEvent(new Event('change'));
   $('fDistrict').value='';selectUnit(id)}
 function applyZoom(){$('mapinner').style.width=(mapZoom*100)+'%'}
+new ResizeObserver(()=>{const w=$('mapinner').clientWidth;$('mapinner').style.setProperty('--mk',Math.max(14,w*0.0135)+'px')}).observe($('mapinner'));
 $('zoomIn').onclick=()=>{mapZoom=Math.min(4,mapZoom*1.4);applyZoom()};$('zoomOut').onclick=()=>{mapZoom=Math.max(1,mapZoom/1.4);applyZoom()};$('zoomReset').onclick=()=>{mapZoom=1;applyZoom()};
 $('mapwrap').addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();mapZoom=Math.min(4,Math.max(1,mapZoom*(e.deltaY<0?1.15:1/1.15)));applyZoom()},{passive:false});
 (()=>{const w=$('mapwrap');let sx,sy,sl,st,down=false;w.addEventListener('pointerdown',e=>{if(e.target.classList.contains('mk'))return;down=true;w.classList.add('drag');sx=e.clientX;sy=e.clientY;sl=w.scrollLeft;st=w.scrollTop});
