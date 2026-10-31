@@ -648,7 +648,9 @@ ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();fillAdminLists(
 function showDbError(e){
   const msg=String(e&&e.message||e);
   if(/permission/i.test(msg)){
-    $('lgErr').textContent='قاعدة البيانات لا تسمح بالوصول لمسار jabeenBookings. يلزم تحديث قواعد Firebase أولاً.';
+    const t='قاعدة البيانات لا تسمح بالوصول لمسار jabeenBookings. يلزم تحديث قواعد Firebase أولاً — الحجوزات لن تُحفظ.';
+    $('lgErr').textContent=t;
+    if(!$('dbErr')){const d=document.createElement('div');d.id='dbErr';d.className='banner red';d.textContent='⛔ '+t;$('appView').prepend(d)}
   }
 }
 $('lgBtn').onclick=login; $('lgPin').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
@@ -671,7 +673,7 @@ function enterApp(){
   $('rolePill').classList.remove('hidden');$('rolePill').textContent=`${ROLE_AR[session.role]} · ${session.name}`;
   if(session.role==='admin')$('adminTab').classList.remove('hidden');
   if(session.role==='checker'){switchTab('bookings')}
-  startData();
+  renderAll();startData();
 }
 
 /* ===== Data listeners ===== */
