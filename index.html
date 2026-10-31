@@ -604,9 +604,8 @@ const ROLE_AR = {maker:'مُدخل',checker:'مُراجع',admin:'مدير'};
 
 /* ===== Firebase ===== */
 firebase.initializeApp({
-  apiKey:"AIzaSyD1tcC2glbAh-5arxzGxNWB7BHra2Ulmi8", authDomain:"task-board-d3f90.firebaseapp.com",
-  databaseURL:"https://task-board-d3f90-default-rtdb.firebaseio.com", projectId:"task-board-d3f90",
-  storageBucket:"task-board-d3f90.firebasestorage.app", messagingSenderId:"455852977918", appId:"1:455852977918:web:e4446311a1443f6b9abfaf"
+  projectId:"jabeen-bookings",
+  databaseURL:"https://jabeen-bookings-default-rtdb.europe-west1.firebasedatabase.app"
 });
 const db = firebase.database();
 const ROOT = db.ref('jabeenBookings');
@@ -665,7 +664,6 @@ async function login(){
   session={role,name};try{sessionStorage.setItem('jb-session',JSON.stringify(session))}catch(e){}
   enterApp(); if(!stored&&role==='admin')toast('أنت تستخدم الرموز الافتراضية — غيّرها من الإعدادات',true);
 }
-try{const s=JSON.parse(sessionStorage.getItem('jb-session'));if(s&&s.role&&s.name){session=s;enterApp()}}catch(e){}
 $('logoutBtn').onclick=()=>{session=null;try{sessionStorage.removeItem('jb-session')}catch(e){};location.reload()};
 
 function enterApp(){
@@ -879,6 +877,8 @@ $('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=
 /* ===== CSV ===== */
 function csv(name,head,rows){const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;const body=[head,...rows].map(r=>r.map(q).join(',')).join('\r\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+body],{type:'text/csv;charset=utf-8'}));a.download=`${name}_${today()}.csv`;a.click();URL.revokeObjectURL(a.href)}
+/* restore session last, after every declaration above is initialised */
+try{const s=JSON.parse(sessionStorage.getItem('jb-session'));if(s&&s.role&&s.name){session=s;enterApp()}}catch(e){}
 </script>
 </body>
 </html>
