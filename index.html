@@ -838,7 +838,7 @@ function renderExceptions(){
   const groups=[];excRows=[];
   const byUnit={};act.forEach(b=>(byUnit[b.unitId]=byUnit[b.unitId]||[]).push(b));
   groups.push({t:'وحدة عليها أكثر من حجز نشط',rows:Object.values(byUnit).filter(a=>a.length>1).flat().map(b=>({b,why:`${byUnit[b.unitId].length} حجوزات على الوحدة`}))});
-  const byNat={};act.forEach(b=>(byNat[b.natId]=byNat[b.natId]||[]).push(b));
+  const byNat={};act.filter(b=>b.natId).forEach(b=>(byNat[b.natId]=byNat[b.natId]||[]).push(b));
   groups.push({t:'رقم هوية مسجل على أكثر من حجز نشط',rows:Object.values(byNat).filter(a=>a.length>1).flat().map(b=>({b,why:`الهوية مكررة على: ${byNat[b.natId].map(x=>x.unitId).join('، ')}`}))});
   groups.push({t:'حجوزات بياناتها تختلف عن الجدول الرئيسي',rows:act.map(b=>{const m=MASTER_BY_ID[b.unitId];if(!m)return null;const d=[];if(m.district!==b.district)d.push(`الحي: ${b.district} ≠ ${m.district}`);if(m.block!==b.block)d.push(`البلوك: ${b.block} ≠ ${m.block}`);if(m.model!==b.model)d.push(`النموذج: ${b.model} ≠ ${m.model}`);if(m.company!==b.company)d.push(`الشركة: ${b.company} ≠ ${m.company}`);if(Number(m.price)!==Number(b.price))d.push(`السعر: ${fmt(b.price)} ≠ ${fmt(m.price)}`);return d.length?{b,why:d.join(' | ')}:null}).filter(Boolean)});
   groups.push({t:'حجوزات لوحدات غير موجودة في الجدول الرئيسي',rows:act.filter(b=>!MASTER_BY_ID[b.unitId]).map(b=>({b,why:'الوحدة غير معرّفة في الماستر'}))});
