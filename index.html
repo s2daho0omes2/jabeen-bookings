@@ -192,9 +192,8 @@ tr:hover td{background:var(--hover)}
       <div class="stats hidden" id="statsTop"></div>
       <div class="card">
         <h2>تسجيل حجز جديد</h2>
-        <div class="hint">اختر الشركة والحي ثم اكتب رقم القطعة فقط؛ رقم الوحدة والبلوك والنموذج والسعر تُعبَّأ تلقائياً من الجدول الرئيسي ولا يمكن تعديلها. الوحدات المحجوزة لا تظهر في القائمة.</div>
+        <div class="hint">اختر الحي ثم اكتب رقم القطعة فقط؛ رقم الوحدة والبلوك والنموذج والسعر تُعبَّأ تلقائياً من الجدول الرئيسي ولا يمكن تعديلها. الوحدات المحجوزة لا تظهر في القائمة.</div>
         <div class="grid">
-          <div class="f"><label>الشركة <span class="req">*</span></label><select id="fCompany"><option value="">— اختر الشركة —</option></select></div>
           <div class="f"><label>الحي <span class="req">*</span></label><select id="fDistrict"><option value="">— اختر الحي —</option></select></div>
           <div class="f combo"><label>رقم القطعة <span class="req">*</span></label>
             <input id="fUnit" inputmode="numeric" placeholder="مثال: 57" autocomplete="off" disabled>
@@ -216,6 +215,7 @@ tr:hover td{background:var(--hover)}
         <div class="grid">
           <div class="f"><label>رقم الهوية الوطنية <span class="req">*</span></label><input id="fNatId" inputmode="numeric" maxlength="10" placeholder="10 أرقام تبدأ بـ 1 أو 2" autocomplete="off"><div class="err" id="natErr"></div></div>
           <div class="f"><label>اسم العميل <span class="req">*</span></label><input id="fName" placeholder="الاسم الكامل كما في الهوية" autocomplete="off"></div>
+          <div class="f"><label>الشركة <span class="req">*</span></label><select id="fCompany"><option value="">— اختر الشركة —</option></select><div class="err" id="compErr"></div></div>
           <div class="f"><label>الرقم الوظيفي</label><input id="fEmp" inputmode="numeric" autocomplete="off"></div>
           <div class="f"><label>رقم الجوال</label><input id="fPhone" inputmode="tel" maxlength="10" placeholder="05xxxxxxxx" autocomplete="off"><div class="err" id="phoneErr"></div></div>
           <div class="f"><label>طريقة الدفع <span class="req">*</span></label><select id="fPay"><option value="">— اختر —</option></select></div>
@@ -960,12 +960,14 @@ function fillPay(){const cur=$('fPay').value;fillSelect($('fPay'),payMethods(),'
 $('fDate').value=today();$('fDate').max=today();
 
 function availableUnits(){
-  const c=$('fCompany').value,d=$('fDistrict').value,q=sanitizeDigits($('fUnit').value);
-  if(!c||!d)return [];
-  return MASTER.filter(u=>(u.company===c||u.company===UNALLOC)&&u.district===d&&unitStatus(u.id)==='available')
+  const d=$('fDistrict').value,q=sanitizeDigits($('fUnit').value);
+  if(!d)return [];
+  return MASTER.filter(u=>u.district===d&&unitStatus(u.id)==='available')
     .filter(u=>!q||String(parseInt(u.plot,10)).startsWith(String(parseInt(q,10)))).sort((a,b)=>a.id.localeCompare(b.id));
 }
-$('fCompany').onchange=$('fDistrict').onchange=()=>{clearUnit();const ready=$('fCompany').value&&$('fDistrict').value;$('fUnit').disabled=!ready;$('fUnit').value='';if(ready){$('fUnit').focus();openList()}};
+$('fDistrict').onchange=()=>{clearUnit();const ready=!!$('fDistrict').value;$('fUnit').disabled=!ready;$('fUnit').value='';if(ready){$('fUnit').focus();openList()}};
+$('fCompany').onchange=()=>{checkCompany();updateSubmit()};
+function checkCompany(){const c=$('fCompany').value;$('compErr').textContent=(selectedUnit&&c&&selectedUnit.company!==UNALLOC&&selectedUnit.company!==c)?`⛔ الوحدة ${selectedUnit.id} مخصصة لشركة ${selectedUnit.company}`:''}
 $('fUnit').addEventListener('input',()=>{$('fUnit').value=sanitizeDigits($('fUnit').value).slice(0,3);const q=$('fUnit').value;
   if(selectedUnit&&parseInt(q||'0',10)!==parseInt(selectedUnit.plot,10))clearUnit(true);
   if(q){const id=(DISTRICT_CODE[$('fDistrict').value]||'')+'-'+q.padStart(3,'0');const u=MASTER_BY_ID[id];
@@ -980,22 +982,23 @@ $('fUnit').addEventListener('keydown',e=>{const opts=[...$('unitList').querySele
   else if(e.key==='Escape'){closeList()}});
 document.addEventListener('click',e=>{if(!e.target.closest('.combo'))closeList()});
 function paintHl(opts){opts.forEach((o,i)=>o.classList.toggle('hl',i===hl));if(opts[hl])opts[hl].scrollIntoView({block:'nearest'})}
-function openList(){if(!$('fCompany').value||!$('fDistrict').value)return;const list=availableUnits();hl=-1;
-  $('unitList').innerHTML=list.length?list.slice(0,200).map(u=>`<div class="opt" data-id="${u.id}"><b>قطعة ${parseInt(u.plot,10)} <span class="muted" style="font-weight:500">(${u.id})</span></b><span>${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model} · ${fmt(u.price)} ر.س${u.company===UNALLOC?' · غير مخصصة':''}</span></div>`).join('')+(list.length>200?`<div class="none">… و${list.length-200} وحدة أخرى، اكتب للتصفية</div>`:''):'<div class="none">لا توجد قطع متاحة مطابقة</div>';
+function openList(){if(!$('fDistrict').value)return;const list=availableUnits();hl=-1;
+  $('unitList').innerHTML=list.length?list.slice(0,200).map(u=>`<div class="opt" data-id="${u.id}"><b>قطعة ${parseInt(u.plot,10)} <span class="muted" style="font-weight:500">(${u.id})</span></b><span>${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model} · ${fmt(u.price)} ر.س · ${esc(u.company)}</span></div>`).join('')+(list.length>200?`<div class="none">… و${list.length-200} وحدة أخرى، اكتب للتصفية</div>`:''):'<div class="none">لا توجد قطع متاحة مطابقة</div>';
   $('unitList').classList.remove('hidden');
   $('unitList').querySelectorAll('.opt').forEach(o=>o.onclick=()=>selectUnit(o.dataset.id))}
 function closeList(){$('unitList').classList.add('hidden')}
 function refreshUnitCombo(){if(!$('unitList').classList.contains('hidden'))openList()}
 function selectUnit(id,keepFocus){selectedUnit=MASTER_BY_ID[id];$('fUnit').value=String(parseInt(selectedUnit.plot,10));closeList();
-  $('aUnitId').value=selectedUnit.id;$('aDistrict').value=selectedUnit.district;$('aBlock').value=selectedUnit.block;$('aModel').value=selectedUnit.model;
+  $('aUnitId').value=selectedUnit.id;$('aDistrict').value=selectedUnit.district;
+  if(selectedUnit.company!==UNALLOC)$('fCompany').value=selectedUnit.company;checkCompany();$('aBlock').value=selectedUnit.block;$('aModel').value=selectedUnit.model;
   $('aRooms').value=`${selectedUnit.bed} غرف / ${selectedUnit.bath} حمامات`;$('aArea').value=`${fmt(selectedUnit.plotArea)} / ${fmt(selectedUnit.builtArea)}`;$('aPrice').value=fmt(selectedUnit.price);
   checkSelectedUnit();updateSubmit();if(!keepFocus)$('fNatId').focus()}
-function clearUnit(keepText){selectedUnit=null;if(!keepText)$('fUnit').value='';['aUnitId','aDistrict','aBlock','aModel','aRooms','aArea','aPrice'].forEach(i=>$(i).value='');$('unitBanner').innerHTML='';$('unitErr').textContent='';updateSubmit()}
+function clearUnit(keepText){selectedUnit=null;if(!keepText)$('fUnit').value='';['aUnitId','aDistrict','aBlock','aModel','aRooms','aArea','aPrice'].forEach(i=>$(i).value='');$('unitBanner').innerHTML='';$('unitErr').textContent='';$('compErr').textContent='';updateSubmit()}
 function checkSelectedUnit(){
   if(!selectedUnit)return;
   const b=activeBookingForUnit(selectedUnit.id);
   if(b){$('unitBanner').innerHTML=`<div class="banner red">⛔ الوحدة ${selectedUnit.id} غير متاحة — محجوزة (${STATUS_AR[b.status]}) باسم ${esc(b.name)}<small>سُجلت بواسطة ${esc(b.maker||'—')} في ${fmtTime(b.createdAt)}. اختر وحدة أخرى.</small></div>`;$('unitErr').textContent='غير متاحة'}
-  else if(selectedUnit.company!==UNALLOC&&selectedUnit.company!==$('fCompany').value){$('unitBanner').innerHTML=`<div class="banner red">⛔ هذه الوحدة مخصصة لشركة ${esc(selectedUnit.company)} وليس ${esc($('fCompany').value)}</div>`;$('unitErr').textContent='تعارض في الشركة'}
+  else if(selectedUnit.company!==UNALLOC){$('unitBanner').innerHTML=`<div class="banner ok">✓ الوحدة ${selectedUnit.id} متاحة للحجز — مخصصة لشركة ${esc(selectedUnit.company)}</div>`;$('unitErr').textContent=''}
   else {$('unitBanner').innerHTML=`<div class="banner ok">✓ الوحدة ${selectedUnit.id} متاحة للحجز</div>`;$('unitErr').textContent=''}
 }
 $('fNatId').addEventListener('input',()=>{$('fNatId').value=sanitizeDigits($('fNatId').value).slice(0,10);checkNat();updateSubmit()});
@@ -1009,11 +1012,11 @@ function checkNat(){const v=$('fNatId').value;const el=$('natErr');el.className=
   el.className='okm';el.textContent='✓ رقم الهوية غير مكرر';return true}
 function formValid(){
   return selectedUnit && !$('unitErr').textContent && validNatId($('fNatId').value) && !activeBookingForNat($('fNatId').value)
-    && $('fName').value.trim().length>=3 && $('fPay').value && $('fDate').value && (!$('fPhone').value||/^05\d{8}$/.test($('fPhone').value));
+    && $('fName').value.trim().length>=3 && $('fPay').value && $('fDate').value && $('fCompany').value && !$('compErr').textContent && (!$('fPhone').value||/^05\d{8}$/.test($('fPhone').value));
 }
 function updateSubmit(){$('submitBtn').disabled=!formValid()||!session||session.role==='checker'}
 $('resetBtn').onclick=resetForm;
-function resetForm(){clearUnit();['fNatId','fName','fEmp','fPhone','fNotes'].forEach(i=>$(i).value='');$('fPay').value='';$('fDate').value=today();$('natErr').textContent='';$('phoneErr').textContent='';$('formBanner').innerHTML='';updateSubmit()}
+function resetForm(){clearUnit();['fNatId','fName','fEmp','fPhone','fNotes'].forEach(i=>$(i).value='');$('fPay').value='';$('fCompany').value='';$('fDate').value=today();$('natErr').textContent='';$('phoneErr').textContent='';$('formBanner').innerHTML='';updateSubmit()}
 
 $('submitBtn').onclick=async()=>{
   if(!formValid())return;
@@ -1126,7 +1129,6 @@ function showUnit(id){const u=MASTER_BY_ID[id];const b=activeBookingForUnit(id);
   if(!b&&session.role!=='checker')h+=`<button class="btn" onclick="closeModal();bookFromMap('${u.id}')">حجز هذه الوحدة</button>`;
   h+=`<button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;showModal(h)}
 function bookFromMap(id){const u=MASTER_BY_ID[id];switchTab('new');resetForm();
-  $('fCompany').value=u.company===UNALLOC?($('fCompany').value||COMPANIES[0]):u.company;$('fCompany').dispatchEvent(new Event('change'));
   $('fDistrict').value=u.district;$('fDistrict').dispatchEvent(new Event('change'));selectUnit(id)}
 function applyZoom(){$('mapinner').style.width=(mapZoom*100)+'%'}
 new ResizeObserver(()=>{const w=$('mapinner').clientWidth;$('mapinner').style.setProperty('--mk',Math.max(14,w*0.0135)+'px')}).observe($('mapinner'));
