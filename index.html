@@ -66,6 +66,7 @@ input,select,textarea{font:inherit;color:var(--text)}
 .f input,.f select,.f textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--card);font-size:16px;outline:0}
 .f input:focus,.f select:focus,.f textarea:focus{border-color:var(--gold)}
 .f input[readonly]{background:var(--soft);color:var(--muted);border-style:dashed}
+.f .bad{border-color:var(--red)!important;background:var(--red-bg)}
 .f .err{color:var(--red);font-size:13px;font-weight:700;margin-top:4px;min-height:17px}
 .f .okm{color:var(--ok);font-size:13px;font-weight:700;margin-top:4px}
 .combo{position:relative}
@@ -229,7 +230,7 @@ tr:hover td{background:var(--hover)}
         </div>
         <div id="formBanner"></div>
         <div class="actions">
-          <button class="btn" id="submitBtn" disabled>تسجيل الحجز (مبدئي)</button>
+          <button class="btn" id="submitBtn">تسجيل الحجز (مبدئي)</button>
           <button class="btn sec" id="resetBtn">تفريغ النموذج</button>
           <span class="muted" style="font-size:13px">الحجز يبقى «مبدئي» حتى يعتمده المراجع.</span>
         </div>
@@ -1007,6 +1008,7 @@ function checkSelectedUnit(){
   else {$('unitBanner').innerHTML=`<div class="banner ok">✓ الوحدة ${selectedUnit.id} متاحة للحجز</div>`;$('unitErr').textContent=''}
 }
 $('fNatId').addEventListener('input',()=>{$('fNatId').value=sanitizeDigits($('fNatId').value).slice(0,10);checkNat();updateSubmit()});
+$('fNatId').addEventListener('blur',()=>{const v=$('fNatId').value;if(v&&v.length<10){$('natErr').className='err';$('natErr').textContent=`رقم الهوية ناقص: ${v.length} من 10 أرقام`}});
 $('fPhone').addEventListener('input',()=>{$('fPhone').value=sanitizeDigits($('fPhone').value).slice(0,10);const v=$('fPhone').value;$('phoneErr').textContent=v&&!/^05\d{8}$/.test(v)?'رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05':'';updateSubmit()});
 ['fName','fPay','fDate','fEmp'].forEach(i=>$(i).addEventListener('input',updateSubmit));
 function checkNat(){const v=$('fNatId').value;const el=$('natErr');el.className='err';
@@ -1015,16 +1017,36 @@ function checkNat(){const v=$('fNatId').value;const el=$('natErr');el.className=
   const b=activeBookingForNat(v);
   if(b){el.textContent=`⛔ رقم الهوية مسجل على حجز آخر: الوحدة ${b.unitId} (${STATUS_AR[b.status]}) — ${b.name}`;return false}
   el.className='okm';el.textContent='✓ رقم الهوية غير مكرر';return true}
-function formValid(){
-  return selectedUnit && !$('unitErr').textContent && validNatId($('fNatId').value) && !activeBookingForNat($('fNatId').value)
-    && $('fName').value.trim().length>=3 && $('fPay').value && $('fDate').value && $('fCompany').value && !$('compErr').textContent && (!$('fPhone').value||/^05\d{8}$/.test($('fPhone').value));
+function formProblems(){
+  const P=[];const nat=$('fNatId').value,ph=$('fPhone').value,nm=$('fName').value.trim();
+  if(!$('fDistrict').value)P.push(['fDistrict','اختر الحي']);
+  else if(!selectedUnit)P.push(['fUnit','اكتب رقم القطعة واختر وحدة متاحة']);
+  else if($('unitErr').textContent)P.push(['fUnit',`الوحدة ${selectedUnit.id} غير متاحة للحجز`]);
+  if(!nat)P.push(['fNatId','رقم الهوية الوطنية مفقود']);
+  else if(!validNatId(nat))P.push(['fNatId',`رقم الهوية غير صحيح (${nat.length} من 10 أرقام، ويجب أن يبدأ بـ 1 أو 2)`]);
+  else{const b=activeBookingForNat(nat);if(b)P.push(['fNatId',`رقم الهوية مسجل على حجز آخر: ${b.refNo||b.unitId}`])}
+  if(!nm)P.push(['fName','اسم العميل مفقود']);else if(nm.length<3)P.push(['fName','اسم العميل قصير جداً']);
+  if(!$('fCompany').value)P.push(['fCompany','اختر الشركة']);else if($('compErr').textContent)P.push(['fCompany',$('compErr').textContent.replace('⛔ ','')]);
+  if(ph&&!/^05\d{8}$/.test(ph))P.push(['fPhone','رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05']);
+  if(!$('fPay').value)P.push(['fPay','اختر طريقة الدفع']);
+  if(!$('fDate').value)P.push(['fDate','تاريخ الحجز مفقود']);
+  return P;
 }
-function updateSubmit(){$('submitBtn').disabled=!formValid()||!session||session.role==='checker'}
+function formValid(){return formProblems().length===0}
+function showProblems(P){
+  document.querySelectorAll('.f .bad').forEach(e=>e.classList.remove('bad'));
+  P.forEach(([id])=>$(id).classList.add('bad'));
+  $('formBanner').innerHTML=`<div class="banner red" style="display:block">⛔ لا يمكن تسجيل الحجز، أكمل التالي:<ul style="margin:8px 18px 0 0;font-weight:500">${P.map(([id,m])=>`<li style="cursor:pointer" onclick="document.getElementById('${id}').focus()">${esc(m)}</li>`).join('')}</ul></div>`;
+  $(P[0][0]).focus();$('formBanner').scrollIntoView({block:'nearest'});
+}
+function updateSubmit(){$('submitBtn').disabled=!session||session.role==='checker';
+  if($('formBanner').querySelector('.banner.red')&&formValid()){$('formBanner').innerHTML='';document.querySelectorAll('.f .bad').forEach(e=>e.classList.remove('bad'))}}
 $('resetBtn').onclick=resetForm;
 function resetForm(){clearUnit();['fNatId','fName','fEmp','fPhone','fNotes'].forEach(i=>$(i).value='');$('fPay').value='';$('fCompany').value='';$('fDate').value=today();$('natErr').textContent='';$('phoneErr').textContent='';$('formBanner').innerHTML='';updateSubmit()}
 
 $('submitBtn').onclick=async()=>{
-  if(!formValid())return;
+  const P=formProblems();if(P.length){showProblems(P);return}
+  document.querySelectorAll('.f .bad').forEach(e=>e.classList.remove('bad'));
   const u=selectedUnit,natId=$('fNatId').value;
   const bid=ROOT.child('bookings').push().key;
   $('submitBtn').disabled=true;$('formBanner').innerHTML='';
