@@ -217,7 +217,7 @@ tr:hover td{background:var(--hover)}
           <select id="bStatus"><option value="">كل الحالات</option><option value="pending">مبدئي (بانتظار الاعتماد)</option><option value="approved">معتمد</option><option value="rejected">مرفوض</option><option value="cancelled">ملغي</option></select>
           <select id="bCompany"><option value="">كل الشركات</option></select>
           <span class="sp"></span>
-          <button class="btn sec sm" id="bExport">تصدير CSV</button>
+          <button class="btn sec sm" id="bExport">تصدير Excel</button>
         </div>
         <div class="count" id="bCount"></div>
         <div class="tblwrap"><table><thead><tr>
@@ -238,7 +238,7 @@ tr:hover td{background:var(--hover)}
           <select id="uModel"><option value="">كل النماذج</option></select>
           <select id="uStatus"><option value="">كل الحالات</option><option value="available">متاحة</option><option value="pending">مبدئي</option><option value="approved">معتمد</option></select>
           <span class="sp"></span>
-          <button class="btn sec sm" id="uExport">تصدير CSV</button>
+          <button class="btn sec sm" id="uExport">تصدير Excel</button>
         </div>
         <div class="count" id="uCount"></div>
         <div class="tblwrap"><table><thead><tr>
@@ -252,7 +252,7 @@ tr:hover td{background:var(--hover)}
       <div class="card exc">
         <h2>تقرير التدقيق اليومي</h2>
         <div class="hint" id="excDate"></div>
-        <div class="actions" style="margin:0 0 10px"><button class="btn sec sm" id="excExport">تصدير التقرير CSV</button><button class="btn sec sm" onclick="window.print()">طباعة</button></div>
+        <div class="actions" style="margin:0 0 10px"><button class="btn sec sm" id="excExport">تصدير التقرير Excel</button><button class="btn sec sm" onclick="window.print()">طباعة</button></div>
         <div id="excBody"></div>
       </div>
     </section>
@@ -288,6 +288,7 @@ tr:hover td{background:var(--hover)}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 /* ===== MASTER DATA (generated from the master sheet; edit only via the sheet) =====
    [id, district, plot, block, model, company, plotArea, builtArea, bed, bath, price] */
@@ -875,11 +876,17 @@ $('savePins').onclick=async()=>{const p={...(config.pins||{})};let n=0;
   if(!n)return toast('لم تدخل أي رمز جديد',true);await ROOT.child('config/pins').set(p);['pinMaker','pinChecker','pinAdmin'].forEach(i=>$(i).value='');log('تغيير الرموز','','',`${n} رمز`);toast('تم حفظ الرموز')};
 $('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!pay.length)return toast('أضف طريقة دفع واحدة على الأقل',true);await ROOT.child('config/lists').set({payMethods:pay});log('تحديث القوائم','','','');toast('تم حفظ القوائم')};
 
-/* ===== CSV ===== */
-function csv(name,head,rows){const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;const body=[head,...rows].map(r=>r.map(q).join(',')).join('\r\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+body],{type:'text/csv;charset=utf-8'}));a.download=`${name}_${today()}.csv`;a.click();URL.revokeObjectURL(a.href)}
-/* restore session last, after every declaration above is initialised */
-try{const s=JSON.parse(sessionStorage.getItem('jb-session'));if(s&&s.role&&s.name){session=s;enterApp()}}catch(e){}
+/* ===== Excel export ===== */
+function csv(name,head,rows){
+  const data=[head,...rows.map(r=>r.map(v=>v==null?'':v))];
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=head.map((h,i)=>({wch:Math.min(40,Math.max(String(h).length+2,...data.map(r=>String(r[i]??'').length+2)))}));
+  ws['!views']=[{rightToLeft:true}];
+  if(data.length>1)ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:data.length-1,c:head.length-1}})};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31));
+  wb.Workbook={Views:[{RTL:true}]};
+  XLSX.writeFile(wb,`${name}_${today()}.xlsx`);
+}
 </script>
 </body>
 </html>
