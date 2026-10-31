@@ -202,6 +202,11 @@ tr:hover td{background:var(--hover)}
           </div>
         </div>
         <div id="unitBanner"></div>
+        <div id="formMapBox" class="hidden" style="margin:10px 0 4px">
+          <div class="toolbar" style="margin-bottom:6px"><span class="legend" id="formLegend"></span><span class="sp"></span><button class="btn sec sm" id="fZoomOut">−</button><button class="btn sec sm" id="fZoomIn">+</button><button class="btn sec sm" id="fZoomReset">ملاءمة</button></div>
+          <div class="mapwrap" id="fmapwrap" style="max-height:60vh"><div class="mapinner" id="fmapinner"><img id="fmapimg" alt="" draggable="false"><div id="fmarkers"></div></div></div>
+          <div class="count">اضغط قطعة متاحة (مفرّغة) لاختيارها مباشرة. الملونة الممتلئة محجوزة.</div>
+        </div>
         <div class="grid" style="margin-top:8px">
           <div class="f"><label>رقم الوحدة</label><input id="aUnitId" readonly></div>
           <div class="f"><label>الحي</label><input id="aDistrict" readonly></div>
@@ -935,7 +940,7 @@ function startData(){
   ROOT.child('idx/natId').on('value',s=>{idxNat=s.val()||{};renderAll()});
   ROOT.child('audit').limitToLast(300).on('value',s=>{audit=s.val()||{};renderAudit()});
 }
-function renderAll(){renderStats();refreshUnitCombo();checkSelectedUnit();checkNat();renderBookings();renderUnits();renderMarkers();renderExceptions();updateSubmit()}
+function renderAll(){renderStats();refreshUnitCombo();checkSelectedUnit();checkNat();renderBookings();renderUnits();renderMarkers();renderFormMap();renderExceptions();updateSubmit()}
 
 /* ===== Tabs ===== */
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
@@ -965,7 +970,7 @@ function availableUnits(){
   return MASTER.filter(u=>u.district===d&&unitStatus(u.id)==='available')
     .filter(u=>!q||String(parseInt(u.plot,10)).startsWith(String(parseInt(q,10)))).sort((a,b)=>a.id.localeCompare(b.id));
 }
-$('fDistrict').onchange=()=>{clearUnit();const ready=!!$('fDistrict').value;$('fUnit').disabled=!ready;$('fUnit').value='';if(ready){$('fUnit').focus();openList()}};
+$('fDistrict').onchange=()=>{clearUnit();const ready=!!$('fDistrict').value;$('fUnit').disabled=!ready;$('fUnit').value='';renderFormMap();if(ready){$('fUnit').focus();openList()}};
 $('fCompany').onchange=()=>{checkCompany();updateSubmit()};
 function checkCompany(){const c=$('fCompany').value;$('compErr').textContent=(selectedUnit&&c&&selectedUnit.company!==UNALLOC&&selectedUnit.company!==c)?`⛔ الوحدة ${selectedUnit.id} مخصصة لشركة ${selectedUnit.company}`:''}
 $('fUnit').addEventListener('input',()=>{$('fUnit').value=sanitizeDigits($('fUnit').value).slice(0,3);const q=$('fUnit').value;
@@ -992,8 +997,8 @@ function selectUnit(id,keepFocus){selectedUnit=MASTER_BY_ID[id];$('fUnit').value
   $('aUnitId').value=selectedUnit.id;$('aDistrict').value=selectedUnit.district;
   if(selectedUnit.company!==UNALLOC)$('fCompany').value=selectedUnit.company;checkCompany();$('aBlock').value=selectedUnit.block;$('aModel').value=selectedUnit.model;
   $('aRooms').value=`${selectedUnit.bed} غرف / ${selectedUnit.bath} حمامات`;$('aArea').value=`${fmt(selectedUnit.plotArea)} / ${fmt(selectedUnit.builtArea)}`;$('aPrice').value=fmt(selectedUnit.price);
-  checkSelectedUnit();updateSubmit();if(!keepFocus)$('fNatId').focus()}
-function clearUnit(keepText){selectedUnit=null;if(!keepText)$('fUnit').value='';['aUnitId','aDistrict','aBlock','aModel','aRooms','aArea','aPrice'].forEach(i=>$(i).value='');$('unitBanner').innerHTML='';$('unitErr').textContent='';$('compErr').textContent='';updateSubmit()}
+  checkSelectedUnit();updateSubmit();renderFormMap();const hit=$('fmarkers').querySelector('.mk.hit');if(hit)hit.scrollIntoView({block:'nearest',inline:'nearest'});if(!keepFocus)$('fNatId').focus()}
+function clearUnit(keepText){selectedUnit=null;if(!keepText)$('fUnit').value='';['aUnitId','aDistrict','aBlock','aModel','aRooms','aArea','aPrice'].forEach(i=>$(i).value='');$('unitBanner').innerHTML='';$('unitErr').textContent='';$('compErr').textContent='';updateSubmit();if(!$('formMapBox').classList.contains('hidden'))renderFormMap()}
 function checkSelectedUnit(){
   if(!selectedUnit)return;
   const b=activeBookingForUnit(selectedUnit.id);
@@ -1138,6 +1143,26 @@ $('mapwrap').addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault(
   w.addEventListener('pointermove',e=>{if(!down)return;w.scrollLeft=sl-(e.clientX-sx);w.scrollTop=st-(e.clientY-sy)});['pointerup','pointerleave'].forEach(ev=>w.addEventListener(ev,()=>{down=false;w.classList.remove('drag')}))})();
 $('mapFind').addEventListener('input',()=>{const q=$('mapFind').value.trim().padStart(3,'0');$('markers').querySelectorAll('.mk').forEach(m=>m.classList.toggle('hit',q!=='000'&&m.dataset.id.endsWith('-'+q)));
   const hit=$('markers').querySelector('.mk.hit');if(hit)hit.scrollIntoView({block:'center',inline:'center',behavior:'smooth'})});
+
+/* ===== Mini map inside the booking form ===== */
+let fZoom=1;
+function renderFormMap(){
+  const d=$('fDistrict').value;const box=$('formMapBox');
+  if(!d||!MAP_IMG[d]){box.classList.add('hidden');return}
+  box.classList.remove('hidden');
+  if($('fmapimg').getAttribute('src')!==MAP_IMG[d])$('fmapimg').src=MAP_IMG[d];
+  $('formLegend').innerHTML=[...COMPANIES,UNALLOC].map(c=>`<span><i style="border-color:${COMPANY_COLOR[c]};background:${COMPANY_COLOR[c]}"></i>${esc(c)}</span>`).join('')+`<span><i style="border-color:#555;background:transparent"></i>متاحة</span>`;
+  const sel=selectedUnit&&selectedUnit.id;
+  $('fmarkers').innerHTML=MASTER.filter(u=>u.district===d&&u.x!=null).map(u=>{const s=unitStatus(u.id);const c=COMPANY_COLOR[u.company]||'#999';
+    return `<div class="mk ${s}${u.id===sel?' hit':''}" data-id="${u.id}" title="${u.id} · ${esc(u.company)} · ${STATUS_AR[s]}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
+  $('fmarkers').querySelectorAll('.mk').forEach(m=>m.onclick=e=>{e.stopPropagation();const id=m.dataset.id;if(unitStatus(id)==='available')selectUnit(id);else showUnit(id)});
+}
+function applyFZoom(){$('fmapinner').style.width=(fZoom*100)+'%'}
+$('fZoomIn').onclick=()=>{fZoom=Math.min(4,fZoom*1.4);applyFZoom()};$('fZoomOut').onclick=()=>{fZoom=Math.max(1,fZoom/1.4);applyFZoom()};$('fZoomReset').onclick=()=>{fZoom=1;applyFZoom()};
+$('fmapwrap').addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();fZoom=Math.min(4,Math.max(1,fZoom*(e.deltaY<0?1.15:1/1.15)));applyFZoom()},{passive:false});
+(()=>{const w=$('fmapwrap');let sx,sy,sl,st,down=false;w.addEventListener('pointerdown',e=>{if(e.target.classList.contains('mk'))return;down=true;w.classList.add('drag');sx=e.clientX;sy=e.clientY;sl=w.scrollLeft;st=w.scrollTop});
+  w.addEventListener('pointermove',e=>{if(!down)return;w.scrollLeft=sl-(e.clientX-sx);w.scrollTop=st-(e.clientY-sy)});['pointerup','pointerleave'].forEach(ev=>w.addEventListener(ev,()=>{down=false;w.classList.remove('drag')}))})();
+new ResizeObserver(()=>{const w=$('fmapinner').clientWidth;$('fmapinner').style.setProperty('--mk',Math.max(14,w*0.0135)+'px')}).observe($('fmapinner'));
 
 /* ===== Exceptions report ===== */
 let excRows=[];
