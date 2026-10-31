@@ -157,6 +157,7 @@ tr:hover td{background:var(--hover)}
     <div class="userbox">
       <span class="pill" id="connPill" title="حالة الاتصال بقاعدة البيانات"><span class="dot" id="connDot"></span><span id="connTxt">جارٍ الاتصال…</span></span>
       <span class="role hidden" id="rolePill"></span>
+      <span class="pill hidden" id="namePill" title="اسمك يُسجَّل على الحجوزات التي تدخلها أو تعتمدها">👤 <input id="userName" placeholder="اسمك" style="border:0;outline:0;background:transparent;font:inherit;width:120px;color:var(--text)"></span>
       <button class="pill" id="themeBtn" title="الوضع الليلي">◐</button>
       <button class="pill hidden" id="logoutBtn">خروج</button>
     </div>
@@ -845,6 +846,7 @@ const COMPANIES = [...new Set(MASTER.map(u=>u.company))].filter(c=>c!==UNALLOC);
 const MODELS = [...new Set(MASTER.map(u=>u.model))].sort();
 const DEFAULT_PAY = ['تمويل بنكي','دفع نقدي','تمويل بنكي + دعم سكني','برنامج الشركة','أخرى'];
 const DEFAULT_PINS = {maker:'1111',checker:'2222',admin:'2026'};
+const OPEN_ACCESS = true; // true = لا تسجيل دخول: الموقع مفتوح للجميع بصلاحيات كاملة (يُعاد التفعيل لاحقاً بجعلها false)
 const STATUS_AR = {available:'متاحة',pending:'مبدئي',approved:'معتمد',rejected:'مرفوض',cancelled:'ملغي'};
 const ROLE_AR = {maker:'مُدخل',checker:'مُراجع',admin:'مدير'};
 
@@ -1179,6 +1181,15 @@ function csv(name,head,rows){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31));
   wb.Workbook={Views:[{RTL:true}]};
   XLSX.writeFile(wb,`${name}_${today()}.xlsx`);
+}
+/* ===== startup: open access or restore saved session ===== */
+if(OPEN_ACCESS){
+  let nm='';try{nm=localStorage.getItem('jb-name')||''}catch(e){}
+  session={role:'admin',name:nm||'مستخدم'};$('namePill').classList.remove('hidden');$('userName').value=nm;
+  $('userName').addEventListener('input',()=>{session.name=$('userName').value.trim()||'مستخدم';try{localStorage.setItem('jb-name',$('userName').value.trim())}catch(e){}});
+  enterApp();$('rolePill').classList.add('hidden');$('logoutBtn').classList.add('hidden');
+}else{
+  try{const s=JSON.parse(sessionStorage.getItem('jb-session'));if(s&&s.role&&s.name){session=s;enterApp()}}catch(e){}
 }
 </script>
 </body>
