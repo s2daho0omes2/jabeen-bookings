@@ -318,7 +318,10 @@ tr:hover td{background:var(--hover)}
       <div class="card">
         <h2>القوائم المنسدلة</h2>
         <div class="hint">كل قيمة في سطر. تُستخدم في نموذج الحجز بدل الكتابة الحرة.</div>
-        <div class="f"><label>طرق الدفع</label><textarea id="listPay" rows="5"></textarea></div>
+        <div class="grid">
+          <div class="f"><label>طرق الدفع</label><textarea id="listPay" rows="6"></textarea></div>
+          <div class="f"><label>شركات إضافية</label><textarea id="listCompanies" rows="6" placeholder="اسم الشركة&#10;شركة أخرى"></textarea><div class="muted" style="font-size:12px;margin-top:4px">الشركات الأساسية (ياسرف، مرافق، الفارابي) من الجدول الرئيسي ولا تُحذف. الشركات هنا تُضاف لقوائم الاختيار وتحجز الوحدات غير المخصصة.</div></div>
+        </div>
         <div class="actions"><button class="btn" id="saveLists">حفظ القوائم</button></div>
       </div>
       <div class="card">
@@ -848,10 +851,21 @@ const MASTER_RAW = [
 ];
 const MASTER = MASTER_RAW.map(r=>({id:r[0],district:r[1],plot:r[2],block:r[3],model:r[4],company:r[5],plotArea:r[6],builtArea:r[7],bed:r[8],bath:r[9],price:r[10],x:r[11],y:r[12]}));
 const MASTER_BY_ID = Object.fromEntries(MASTER.map(u=>[u.id,u]));
+const COMPANY_COLOR={};
 const DISTRICTS={AZ:'العزيزية',NK:'النخيل',BT:'البثنة',NW:'النواة',JB:'الجابرية'}; // رموز الأحياء الخمسة
 const DISTRICT_CODE=Object.fromEntries(Object.entries(DISTRICTS).map(([k,v])=>[v,k]));
 const UNALLOC='غير مخصصة';
-const COMPANIES = [...new Set(MASTER.map(u=>u.company))].filter(c=>c!==UNALLOC);
+const BASE_COMPANIES = [...new Set(MASTER.map(u=>u.company))].filter(c=>c!==UNALLOC);
+let COMPANIES = [...BASE_COMPANIES];
+const EXTRA_COLORS=['#8e44ad','#e67e22','#16a085','#c0392b','#2c3e50','#d35400','#7f8c8d'];
+function extraCompanies(){return (config.lists&&config.lists.companies)||[]}
+function refreshCompanies(){
+  COMPANIES=[...BASE_COMPANIES,...extraCompanies().filter(c=>!BASE_COMPANIES.includes(c))];
+  extraCompanies().forEach((c,i)=>{if(!COMPANY_COLOR[c])COMPANY_COLOR[c]=EXTRA_COLORS[i%EXTRA_COLORS.length]});
+  [['fCompany','— اختر الشركة —'],['bCompany','كل الشركات']].forEach(([id,f])=>{const el=$(id);const v=el.value;fillSelect(el,COMPANIES,f);el.value=v});
+  const u=$('uCompany');const uv=u.value;fillSelect(u,[...COMPANIES,UNALLOC],'كل الشركات');u.value=uv;
+  if(typeof initMap==='function'&&mapDistrict)initMap();
+}
 const MODELS = [...new Set(MASTER.map(u=>u.model))].sort();
 const DEFAULT_PAY = ['تمويل بنكي','دفع نقدي','تمويل بنكي + دعم سكني','برنامج الشركة','أخرى'];
 const DEFAULT_PINS = {maker:'1111',checker:'2222',admin:'2026'};
@@ -901,7 +915,7 @@ $('themeBtn').onclick=()=>{const d=document.documentElement.dataset.theme==='dar
 db.ref('.info/connected').on('value',s=>{const on=!!s.val();$('connDot').className='dot'+(on?' on':'');$('connTxt').textContent=on?'متصل':'غير متصل'});
 
 /* ===== Login ===== */
-ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();fillAdminLists()},e=>{showDbError(e)});
+ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();refreshCompanies();fillAdminLists();if(started)renderAll()},e=>{showDbError(e)});
 function showDbError(e){
   const msg=String(e&&e.message||e);
   if(/permission/i.test(msg)){
@@ -1127,7 +1141,7 @@ $('uExport').onclick=()=>csv('الوحدات',['رقم الوحدة','الحي',
   filteredUnits().map(u=>{const st=unitStatus(u.id),b=activeBookingForUnit(u.id);return [u.id,u.district,u.plot,u.block,u.model,u.company,u.bed,u.bath,u.plotArea,u.builtArea,u.price,STATUS_AR[st],b?b.name:'']}));
 
 /* ===== Map ===== */
-const COMPANY_COLOR={'ياسرف':'#e3b505','مرافق':'#2e9e5b','الفارابي':'#2f6fd6','غير مخصصة':'#8a8a8a'};
+Object.assign(COMPANY_COLOR,{'ياسرف':'#e3b505','مرافق':'#2e9e5b','الفارابي':'#2f6fd6','غير مخصصة':'#8a8a8a'});
 const MAP_IMG={'العزيزية':'maps/map-aziziyah.jpg','النخيل':'maps/map-nakheel.jpg'};
 let mapDistrict=null,mapZoom=1,mapFilter={company:null,status:null};
 function initMap(){
@@ -1226,11 +1240,15 @@ async function fixIdx(){ // rebuild uniqueness index from active bookings (admin
 $('excExport').onclick=()=>csv('تقرير_التدقيق',['نوع الاستثناء','الوحدة','العميل','الهوية','الشركة','الحالة','المُدخل','المشكلة'],excRows);
 
 /* ===== Admin ===== */
-function fillAdminLists(){if($('listPay'))$('listPay').value=payMethods().join('\n')}
+function fillAdminLists(){if($('listPay'))$('listPay').value=payMethods().join('\n');if($('listCompanies'))$('listCompanies').value=extraCompanies().join('\n')}
 $('savePins').onclick=async()=>{const p={...(config.pins||{})};let n=0;
   for(const [k,id] of [['maker','pinMaker'],['checker','pinChecker'],['admin','pinAdmin']]){const v=$(id).value.trim();if(v){if(v.length<4)return toast('الرمز 4 أحرف على الأقل',true);p[k]=await sha(v);n++}}
   if(!n)return toast('لم تدخل أي رمز جديد',true);await ROOT.child('config/pins').set(p);['pinMaker','pinChecker','pinAdmin'].forEach(i=>$(i).value='');log('تغيير الرموز','','',`${n} رمز`);toast('تم حفظ الرموز')};
-$('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!pay.length)return toast('أضف طريقة دفع واحدة على الأقل',true);await ROOT.child('config/lists').set({payMethods:pay});log('تحديث القوائم','','','');toast('تم حفظ القوائم')};
+$('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!pay.length)return toast('أضف طريقة دفع واحدة على الأقل',true);
+  const comps=[...new Set($('listCompanies').value.split('\n').map(s=>s.trim()).filter(c=>c&&!BASE_COMPANIES.includes(c)&&c!==UNALLOC))];
+  const removed=extraCompanies().filter(c=>!comps.includes(c)&&Object.values(bookings).some(b=>isActive(b)&&b.company===c));
+  if(removed.length)return toast(`لا يمكن حذف شركة عليها حجوزات نشطة: ${removed.join('، ')}`,true);
+  await ROOT.child('config/lists').set({payMethods:pay,companies:comps});log('تحديث القوائم','','',`شركات إضافية: ${comps.join('، ')||'لا شيء'}`);toast('تم حفظ القوائم')};
 
 /* ===== Excel export ===== */
 function csv(name,head,rows){
