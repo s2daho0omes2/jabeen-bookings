@@ -46,16 +46,29 @@ function syncAll() {
     });
     writeSheet_(ss, 'الحجوزات', bHead, bRows);
 
-    // ---------- الوحدات (الماستر + الحالة) ----------
+    // ---------- الوحدات: كل الفلل (506) وعلى كل صف بيانات حجزها إن وُجد ----------
     var active = {};
     list.forEach(function (b) { if (b.status === 'pending' || b.status === 'approved') active[b.unitId] = b; });
-    var uHead = ['رقم الوحدة', 'الحي', 'رقم القطعة', 'البلوك', 'النموذج', 'التخصيص', 'غرف', 'حمامات', 'مساحة الأرض', 'مساحة البناء', 'السعر', 'الحالة', 'كود الحجز', 'العميل', 'شركة الحجز'];
+    var uHead = ['رقم الوحدة', 'الحي', 'رقم القطعة', 'البلوك', 'النموذج', 'التخصيص', 'غرف', 'حمامات', 'مساحة الأرض', 'مساحة البناء', 'السعر',
+      'الحالة', 'كود الحجز', 'اسم العميل', 'رقم الهوية', 'الرقم الوظيفي', 'الجوال', 'شركة الحجز', 'طريقة الدفع', 'تاريخ الحجز', 'المُدخل', 'وقت الإدخال', 'المُراجع', 'وقت المراجعة', 'ملاحظات'];
     var uRows = master.map(function (u) {
       var b = active[u.id];
       return [u.id, u.district, u.plot, u.block, u.model, u.company, u.bed, u.bath, u.plotArea, u.builtArea, u.price,
-        b ? STATUS_AR[b.status] : 'متاحة', b ? b.refNo || '' : '', b ? b.name || '' : '', b ? b.company || '' : ''];
+        b ? STATUS_AR[b.status] : 'متاحة',
+        b ? b.refNo || '' : '', b ? b.name || '' : '', b && b.natId ? "'" + b.natId : '', b ? b.empNo || '' : '', b && b.phone ? "'" + b.phone : '',
+        b ? b.company || '' : '', b ? b.payMethod || '' : '', b ? b.bookingDate || '' : '', b ? b.maker || '' : '', b ? ts_(b.createdAt) : '',
+        b ? b.checker || '' : '', b ? ts_(b.checkedAt) : '', b ? b.notes || '' : ''];
     });
     writeSheet_(ss, 'الوحدات', uHead, uRows);
+    if (uRows.length) {
+      var ush = ss.getSheetByName('الوحدات'), stRange = ush.getRange(2, 12, uRows.length, 1);
+      ush.clearConditionalFormatRules();
+      ush.setConditionalFormatRules([
+        SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('متاحة').setBackground('#e6f3ec').setFontColor('#1e6b45').setRanges([stRange]).build(),
+        SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('معتمد').setBackground('#fdecea').setFontColor('#b3261e').setRanges([stRange]).build(),
+        SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('مبدئي').setBackground('#fff5d6').setFontColor('#9a6b00').setRanges([stRange]).build()
+      ]);
+    }
 
     // ---------- سجل الحركات ----------
     var aList = Object.keys(audit).map(function (k) { return audit[k]; }).sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
@@ -79,10 +92,10 @@ function syncAll() {
     writeSheet_(ss, 'ملخص', ['التخصيص', 'إجمالي الوحدات', 'متاحة', 'مبدئي', 'معتمد'], sRows);
 
     // ترتيب الأوراق وحذف الورقة الافتراضية الفارغة
-    var ORDER = ['الحجوزات', 'الوحدات', 'سجل الحركات', 'ملخص'];
+    var ORDER = ['الوحدات', 'الحجوزات', 'سجل الحركات', 'ملخص'];
     ORDER.forEach(function (n, i) { ss.setActiveSheet(ss.getSheetByName(n)); ss.moveActiveSheet(i + 1); });
     ss.getSheets().forEach(function (sh) { if (ORDER.indexOf(sh.getName()) < 0 && sh.getLastRow() === 0) ss.deleteSheet(sh); });
-    ss.setActiveSheet(ss.getSheetByName('الحجوزات'));
+    ss.setActiveSheet(ss.getSheetByName('الوحدات'));
 
     return { ok: true, bookings: list.length, units: master.length, at: new Date().toISOString() };
   } finally { lock.releaseLock(); }
