@@ -328,6 +328,7 @@ tr:hover td{background:var(--hover)}
           <label>إلى</label><input type="date" id="dTo">
           <span class="seg" id="dGran"><button data-g="day">يومي</button><button data-g="week">أسبوعي</button><button data-g="month">شهري</button></span>
           <span class="seg" id="dQuick"><button data-q="7">7 أيام</button><button data-q="30">30 يوم</button><button data-q="all">الكل</button></span>
+          <button class="btn sec sm" id="dExport">تصدير Excel</button>
         </div>
         <div class="stats" id="dKpis"></div>
       </div>
@@ -892,7 +893,7 @@ $('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=
   await ROOT.child('config/lists').set({payMethods:pay,companies:comps,sheetWebApp:$('sheetUrl').value.trim()});await ROOT.child('companies').remove();log('تحديث القوائم','','',`شركات إضافية: ${comps.join('، ')||'لا شيء'}`);toast('تم حفظ القوائم')};
 
 /* ===== Dashboard ===== */
-let dGran='', dChart=null, dInit=false;
+let dGran='', dChart=null, dInit=false, dLast=null;
 const ymd=d=>{const z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`};
 const bDate=b=>(b.bookingDate&&/^\d{4}-\d{2}-\d{2}$/.test(b.bookingDate))?b.bookingDate:(b.createdAt?ymd(new Date(b.createdAt)):'');
 function bucketOf(ds,g){const d=new Date(ds+'T00:00:00');if(g==='month')return ds.slice(0,7);if(g==='week'){d.setDate(d.getDate()-d.getDay());return ymd(d)}return ds}
@@ -947,6 +948,9 @@ function renderDash(){
               y:{stacked:true,beginAtZero:true,position:'right',ticks:{color:muted,precision:0},grid:{color:line},title:{display:true,text:'عدد الحجوزات',color:muted}}}};
     if(dChart){dChart.data=data;dChart.options=opts;dChart.update()}else dChart=new Chart($('dChart'),{type:'bar',data,options:opts});
   }
+  const _dl=dist?[dist]:DIST_IN_MASTER;
+  dLast={dist,from,to,g,tot,appr,inRange,keys,A,P,labels:data.labels,dists:_dl.map(d=>[d,tally(MASTER.filter(u=>u.district===d))]),
+    models:_dl.flatMap(d=>[...new Set(MASTER.filter(u=>u.district===d).map(u=>u.model))].sort().map(m=>[d,m,tally(MASTER.filter(u=>u.district===d&&u.model===m))]))};
   $('dChartNote').textContent=`${fmt(inRange.length)} حجز من ${from} إلى ${to} · التجميع ${g==='day'?'يومي':g==='week'?'أسبوعي (يبدأ الأحد)':'شهري'} · حسب تاريخ الحجز`;
   // per district
   const dlist=dist?[dist]:DIST_IN_MASTER;
@@ -957,6 +961,29 @@ function renderDash(){
   const rows=[];dlist.forEach(d=>{[...new Set(MASTER.filter(u=>u.district===d).map(u=>u.model))].sort().forEach(m=>{rows.push([d,m,tally(MASTER.filter(u=>u.district===d&&u.model===m))])})});
   $('dModelBody').innerHTML=rows.map(([d,m,t])=>`<tr><td>${esc(d)}</td><td class="mono"><b>${esc(m)}</b></td><td>${t.n}</td><td>${t.available}</td><td>${t.pending}</td><td>${t.approved}</td><td>${occ(t)}</td></tr>`).join('');
 }
+function exportDash(){
+  if(!dLast)return toast('افتح لوحة المؤشرات أولاً',true);
+  const L=dLast,G={day:'يومي',week:'أسبوعي',month:'شهري'}[L.g],pc=t=>t.n?Math.round((t.pending+t.approved)/t.n*1000)/10:0;
+  const sheet=(rows,widths)=>{const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=(widths||rows[0].map((_,i)=>Math.min(40,Math.max(...rows.map(r=>String(r[i]??'').length))+2))).map(w=>({wch:w}));ws['!views']=[{rightToLeft:true}];return ws};
+  const wb=XLSX.utils.book_new();wb.Workbook={Views:[{RTL:true}]};
+  XLSX.utils.book_append_sheet(wb,sheet([
+    ['تقرير لوحة المؤشرات — مشروع جبين',''],['تاريخ التصدير',fmtTime(Date.now())],['صادر بواسطة',session.name],
+    ['الحي',L.dist||'كل الأحياء'],['الفترة',`${L.from} إلى ${L.to}`],['التجميع',G],['',''],
+    ['الوحدات',L.tot.n],['متاح',L.tot.available],['مبدئي',L.tot.pending],['معتمد',L.tot.approved],['المحجوز',L.tot.pending+L.tot.approved],['نسبة الحجز %',pc(L.tot)],['',''],
+    ['حجوزات الفترة',L.inRange.length],['منها معتمد',L.appr],['منها مبدئي',L.inRange.length-L.appr]],[24,34]),'الملخص');
+  XLSX.utils.book_append_sheet(wb,sheet([['الفترة','بداية الفترة','معتمد','مبدئي','المجموع'],
+    ...L.keys.map((k,i)=>[L.labels[i],k,L.A[k],L.P[k],L.A[k]+L.P[k]]),['الإجمالي','',L.appr,L.inRange.length-L.appr,L.inRange.length]]),'الحجوزات عبر الزمن');
+  XLSX.utils.book_append_sheet(wb,sheet([['الحي','الوحدات','متاح','مبدئي','معتمد','المحجوز','نسبة الحجز %'],
+    ...L.dists.map(([d,t])=>[d,t.n,t.available,t.pending,t.approved,t.pending+t.approved,pc(t)])]),'حسب الحي');
+  XLSX.utils.book_append_sheet(wb,sheet([['الحي','النموذج','الوحدات','متاح','مبدئي','معتمد','نسبة الحجز %'],
+    ...L.models.map(([d,m,t])=>[d,m,t.n,t.available,t.pending,t.approved,pc(t)])]),'حسب النموذج');
+  const bl=[...L.inRange].sort((a,b)=>bDate(a).localeCompare(bDate(b)));
+  XLSX.utils.book_append_sheet(wb,sheet([['تاريخ الحجز','كود الحجز','الوحدة','الحي','النموذج','الشركة','السعر','الحالة','المُدخل','المُراجع'],
+    ...bl.map(b=>[bDate(b),b.refNo||'',b.unitId,b.district,b.model,b.company,b.price,STATUS_AR[b.status]||b.status,b.maker||'',b.checker||''])]),'حجوزات الفترة');
+  XLSX.writeFile(wb,`مؤشرات_جبين_${L.dist||'كل_الأحياء'}_${L.from}_${L.to}.xlsx`);
+  log('تصدير المؤشرات','','',`${L.dist||'كل الأحياء'} · ${L.from} إلى ${L.to}`);
+}
+$('dExport').onclick=exportDash;
 $('themeBtn').addEventListener('click',()=>{if(dChart&&!$('tab-dash').classList.contains('hidden'))setTimeout(renderDash,0)});
 
 /* ===== Excel export ===== */
