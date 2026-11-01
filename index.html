@@ -321,6 +321,7 @@ tr:hover td{background:var(--hover)}
         <div class="hint">كل قيمة في سطر. تُستخدم في نموذج الحجز بدل الكتابة الحرة.</div>
         <div class="grid">
           <div class="f"><label>طرق الدفع</label><textarea id="listPay" rows="6"></textarea></div>
+          <div class="f" style="grid-column:1/-1"><label>رابط مزامنة جدول Google (Apps Script Web App)</label><input id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" dir="ltr"><div class="muted" style="font-size:12px;margin-top:4px">بعد كل حجز أو اعتماد أو رفض يُستدعى هذا الرابط فيُحدَّث جدول Google فوراً.</div></div>
           <div class="f"><label>شركات إضافية</label><textarea id="listCompanies" rows="6" placeholder="اسم الشركة&#10;شركة أخرى"></textarea><div class="muted" style="font-size:12px;margin-top:4px">الشركات الأساسية (ياسرف، مرافق، الفارابي) من الجدول الرئيسي ولا تُحذف. الشركات هنا تُضاف لقوائم الاختيار وتحجز الوحدات غير المخصصة.</div></div>
         </div>
         <div class="actions"><button class="btn" id="saveLists">حفظ القوائم</button></div>
@@ -1090,8 +1091,12 @@ $('submitBtn').onclick=async()=>{
     <div class="actions"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${refNo}');toast('تم نسخ الكود')">نسخ الكود</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
 };
 
-/* ===== Audit ===== */
-function log(action,unitId,bid,details){ROOT.child('audit').push({at:Date.now(),who:session?session.name:'',role:session?session.role:'',action,unitId:unitId||'',bid:bid||'',details:details||''})}
+/* ===== Audit + live Google Sheet mirror ===== */
+let sheetTimer=null;
+function pingSheet(){ // يطلب من Apps Script إعادة مزامنة جدول Google بعد كل إجراء (مؤجل ثانيتين لدمج الإجراءات المتتالية)
+  const url=config.lists&&config.lists.sheetWebApp;if(!url)return;
+  clearTimeout(sheetTimer);sheetTimer=setTimeout(()=>{fetch(url,{method:'POST',mode:'no-cors',body:'sync'}).catch(()=>{})},2000)}
+function log(action,unitId,bid,details){ROOT.child('audit').push({at:Date.now(),who:session?session.name:'',role:session?session.role:'',action,unitId:unitId||'',bid:bid||'',details:details||''});pingSheet()}
 function renderAudit(){const rows=Object.values(audit).sort((a,b)=>b.at-a.at);$('auditBody').innerHTML=rows.map(a=>`<tr><td>${fmtTime(a.at)}</td><td>${esc(a.who)}</td><td>${ROLE_AR[a.role]||''}</td><td>${esc(a.action)}</td><td class="mono">${esc(a.unitId)}</td><td>${esc(a.details)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">لا توجد حركات</td></tr>'}
 
 /* ===== Bookings table ===== */
@@ -1251,7 +1256,7 @@ async function fixIdx(){ // rebuild uniqueness index from active bookings (admin
 $('excExport').onclick=()=>csv('تقرير_التدقيق',['نوع الاستثناء','الوحدة','العميل','الهوية','الشركة','الحالة','المُدخل','المشكلة'],excRows);
 
 /* ===== Admin ===== */
-function fillAdminLists(){if($('listPay'))$('listPay').value=payMethods().join('\n');if($('listCompanies'))$('listCompanies').value=extraCompanies().join('\n')}
+function fillAdminLists(){if($('listPay'))$('listPay').value=payMethods().join('\n');if($('listCompanies'))$('listCompanies').value=extraCompanies().join('\n');if($('sheetUrl'))$('sheetUrl').value=(config.lists&&config.lists.sheetWebApp)||''}
 $('savePins').onclick=async()=>{const p={...(config.pins||{})};let n=0;
   for(const [k,id] of [['maker','pinMaker'],['checker','pinChecker'],['admin','pinAdmin']]){const v=$(id).value.trim();if(v){if(v.length<4)return toast('الرمز 4 أحرف على الأقل',true);p[k]=await sha(v);n++}}
   if(!n)return toast('لم تدخل أي رمز جديد',true);await ROOT.child('config/pins').set(p);['pinMaker','pinChecker','pinAdmin'].forEach(i=>$(i).value='');log('تغيير الرموز','','',`${n} رمز`);toast('تم حفظ الرموز')};
@@ -1259,7 +1264,7 @@ $('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=
   const comps=[...new Set($('listCompanies').value.split('\n').map(s=>s.trim()).filter(c=>c&&!BASE_COMPANIES.includes(c)&&c!==UNALLOC))];
   const removed=extraCompanies().filter(c=>!comps.includes(c)&&Object.values(bookings).some(b=>isActive(b)&&b.company===c));
   if(removed.length)return toast(`لا يمكن حذف شركة عليها حجوزات نشطة: ${removed.join('، ')}`,true);
-  await ROOT.child('config/lists').set({payMethods:pay,companies:comps});log('تحديث القوائم','','',`شركات إضافية: ${comps.join('، ')||'لا شيء'}`);toast('تم حفظ القوائم')};
+  await ROOT.child('config/lists').set({payMethods:pay,companies:comps,sheetWebApp:$('sheetUrl').value.trim()});log('تحديث القوائم','','',`شركات إضافية: ${comps.join('، ')||'لا شيء'}`);toast('تم حفظ القوائم')};
 
 /* ===== Excel export ===== */
 function csv(name,head,rows){
