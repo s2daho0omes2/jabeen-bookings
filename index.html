@@ -209,7 +209,7 @@ tr:hover td{background:var(--hover)}
           <div class="mapwrap" id="fmapwrap" style="max-height:60vh"><div class="mapinner" id="fmapinner"><img id="fmapimg" alt="" draggable="false"><div id="fmarkers"></div><div id="fspot" class="spot hidden"></div></div></div>
           <div class="count"><span id="formMapCount"></span> — اضغط قطعة متاحة لاختيارها مباشرة.</div>
         </div>
-        <div class="grid" style="margin-top:8px">
+        <div class="grid" style="margin-top:8px" id="unitDetails">
           <div class="f"><label>رقم الوحدة</label><input id="aUnitId" readonly></div>
           <div class="f"><label>الحي</label><input id="aDistrict" readonly></div>
           <div class="f"><label>البلوك</label><input id="aBlock" readonly></div>
@@ -1013,7 +1013,11 @@ function selectUnit(id,keepFocus){selectedUnit=MASTER_BY_ID[id];$('fUnit').value
   $('aUnitId').value=selectedUnit.id;$('aDistrict').value=selectedUnit.district;
   if(selectedUnit.company!==UNALLOC)$('fCompany').value=selectedUnit.company;checkCompany();$('aBlock').value=selectedUnit.block;$('aModel').value=selectedUnit.model;
   $('aRooms').value=`${selectedUnit.bed} غرف / ${selectedUnit.bath} حمامات`;$('aArea').value=`${fmt(selectedUnit.plotArea)} / ${fmt(selectedUnit.builtArea)}`;$('aPrice').value=fmt(selectedUnit.price);
-  checkSelectedUnit();updateSubmit();renderFormMap();const hit=$('fmarkers').querySelector('.mk.hit');if(hit)hit.scrollIntoView({block:'nearest',inline:'nearest'});if(!keepFocus)$('fNatId').focus()}
+  checkSelectedUnit();updateSubmit();renderFormMap();
+  const hit=$('fmarkers').querySelector('.mk.hit'),w=$('fmapwrap');
+  if(hit){const hx=hit.offsetLeft,hy=hit.offsetTop;if(hx<w.scrollLeft||hx>w.scrollLeft+w.clientWidth)w.scrollLeft=hx-w.clientWidth/2;if(hy<w.scrollTop||hy>w.scrollTop+w.clientHeight)w.scrollTop=hy-w.clientHeight/2}
+  if(keepFocus==='map'){$('unitDetails').scrollIntoView({block:'end',behavior:'smooth'})}
+  else if(!keepFocus)$('fNatId').focus()}
 function clearUnit(keepText){selectedUnit=null;if(!keepText)$('fUnit').value='';['aUnitId','aDistrict','aBlock','aModel','aRooms','aArea','aPrice'].forEach(i=>$(i).value='');$('unitBanner').innerHTML='';$('unitErr').textContent='';$('compErr').textContent='';updateSubmit();if(!$('formMapBox').classList.contains('hidden'))renderFormMap()}
 function checkSelectedUnit(){
   if(!selectedUnit)return;
@@ -1198,7 +1202,7 @@ function renderFormMap(){
   if(selectedUnit&&selectedUnit.district===d&&selectedUnit.x!=null){sp.classList.remove('hidden');
     sp.style.background=`radial-gradient(circle at ${selectedUnit.x}% ${selectedUnit.y}%, transparent 0, transparent calc(var(--mk)*2.6), rgba(0,0,0,.62) calc(var(--mk)*3.4))`;}
   else sp.classList.add('hidden');
-  $('fmarkers').querySelectorAll('.mk').forEach(m=>m.onclick=e=>{e.stopPropagation();const id=m.dataset.id;if(unitStatus(id)==='available')selectUnit(id);else showUnit(id)});
+  $('fmarkers').querySelectorAll('.mk').forEach(m=>m.onclick=e=>{e.stopPropagation();const id=m.dataset.id;if(unitStatus(id)==='available')selectUnit(id,'map');else showUnit(id)});
 }
 function applyFZoom(){$('fmapinner').style.width=(fZoom*100)+'%'}
 $('fZoomIn').onclick=()=>{fZoom=Math.min(4,fZoom*1.4);applyFZoom()};$('fZoomOut').onclick=()=>{fZoom=Math.max(1,fZoom/1.4);applyFZoom()};$('fZoomReset').onclick=()=>{fZoom=1;applyFZoom()};
