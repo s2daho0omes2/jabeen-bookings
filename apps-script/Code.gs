@@ -5,7 +5,7 @@
  * - مؤقت زمني يعيد المزامنة كل 5 دقائق كشبكة أمان.
  */
 var FIREBASE = 'https://jabeen-bookings-default-rtdb.europe-west1.firebasedatabase.app/jabeenBookings';
-var MASTER_URL = 'https://s2daho0omes2.github.io/jabeen-bookings/master.json';
+var MASTER_URL = 'https://jabeen-bookings.online/master.json';
 var STATUS_AR = { available: 'متاحة', pending: 'مبدئي', approved: 'معتمد', rejected: 'مرفوض', cancelled: 'ملغي' };
 var ROLE_AR = { maker: 'مُدخل', checker: 'مُراجع', admin: 'مدير' };
 
