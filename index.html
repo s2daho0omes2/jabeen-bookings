@@ -120,6 +120,12 @@ tr:hover td{background:var(--hover)}
 .legend .lg.active{background:var(--active);border-color:var(--gold)}
 .mk.dim{opacity:.12;pointer-events:none}
 .legend i{display:inline-block;width:14px;height:14px;border-radius:50%;margin-inline-end:5px;vertical-align:-2px;border:2px solid}
+.dashbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.dashbar label{font-size:13px;color:var(--muted);font-weight:700}
+.dashbar input,.dashbar select{border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:var(--card);color:var(--text);font-size:14px;outline:0}
+.seg button.on{background:var(--green);color:#fff}
+.occ{display:flex;align-items:center;gap:8px;min-width:150px}.occ i{flex:1;height:8px;border-radius:6px;background:var(--line);overflow:hidden;display:block}.occ i b{display:block;height:100%;background:var(--green)}
+.chartbox{position:relative;height:320px}
 .mapwrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#e9e4d8;max-height:78vh;cursor:grab;user-select:none}
 .mapwrap.drag{cursor:grabbing}
 .mapinner{position:relative;width:100%}
@@ -200,6 +206,7 @@ tr:hover td{background:var(--hover)}
       <button class="tab" data-tab="bookings">الحجوزات <span class="badge hidden" id="pendBadge"></span></button>
       <button class="tab" data-tab="units">الوحدات (الماستر)</button>
       <button class="tab" data-tab="map">الخريطة</button>
+      <button class="tab" data-tab="dash">لوحة المؤشرات</button>
       <button class="tab" data-tab="exceptions">تقرير التدقيق <span class="badge hidden" id="excBadge"></span></button>
       <button class="tab hidden" data-tab="admin" id="adminTab">الإعدادات</button>
     </div>
@@ -310,6 +317,35 @@ tr:hover td{background:var(--hover)}
     </section>
 
     <!-- EXCEPTIONS -->
+    <!-- DASHBOARD -->
+    <section id="tab-dash" class="hidden">
+      <div class="card">
+        <h2>لوحة المؤشرات</h2>
+        <div class="hint">حالة الوحدات الحالية لكل حي ونموذج، وعدد الحجوزات خلال الفترة المختارة (المبدئية والمعتمدة، بدون المرفوضة والملغاة).</div>
+        <div class="dashbar">
+          <label>الحي</label><select id="dDistrict"><option value="">كل الأحياء</option></select>
+          <label>من</label><input type="date" id="dFrom">
+          <label>إلى</label><input type="date" id="dTo">
+          <span class="seg" id="dGran"><button data-g="day">يومي</button><button data-g="week">أسبوعي</button><button data-g="month">شهري</button></span>
+          <span class="seg" id="dQuick"><button data-q="7">7 أيام</button><button data-q="30">30 يوم</button><button data-q="all">الكل</button></span>
+        </div>
+        <div class="stats" id="dKpis"></div>
+      </div>
+      <div class="card">
+        <h2>الحجوزات عبر الزمن</h2>
+        <div class="chartbox"><canvas id="dChart" aria-label="عدد الحجوزات حسب الفترة"></canvas></div>
+        <div class="count" id="dChartNote"></div>
+      </div>
+      <div class="card">
+        <h2>حسب الحي</h2>
+        <div class="tblwrap"><table><thead><tr><th>الحي</th><th>الوحدات</th><th>متاح</th><th>مبدئي</th><th>معتمد</th><th>المحجوز</th><th>نسبة الحجز</th></tr></thead><tbody id="dDistBody"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h2>حسب النموذج</h2>
+        <div class="tblwrap"><table><thead><tr><th>الحي</th><th>النموذج</th><th>الوحدات</th><th>متاح</th><th>مبدئي</th><th>معتمد</th><th>نسبة الحجز</th></tr></thead><tbody id="dModelBody"></tbody></table></div>
+      </div>
+    </section>
+
     <section id="tab-exceptions" class="hidden">
       <div class="card exc">
         <h2>تقرير التدقيق اليومي</h2>
@@ -357,6 +393,7 @@ tr:hover td{background:var(--hover)}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 /* ===== MASTER DATA: loaded from the protected database after sign-in (not shipped in the page) ===== */
 let MASTER=[], MASTER_BY_ID={}, BASE_COMPANIES=[], MODELS=[], DIST_IN_MASTER=[];
@@ -515,12 +552,12 @@ function startData(){
   ROOT.child('idx/natId').on('value',s=>{idxNat=s.val()||{};renderAll()});
   ROOT.child('audit').limitToLast(300).on('value',s=>{audit=s.val()||{};renderAudit()});
 }
-function renderAll(){renderStats();refreshUnitCombo();checkSelectedUnit();checkNat();renderBookings();renderUnits();renderMarkers();renderFormMap();renderExceptions();updateSubmit()}
+function renderAll(){renderStats();refreshUnitCombo();checkSelectedUnit();checkNat();renderBookings();renderUnits();renderMarkers();renderFormMap();renderExceptions();if(!$('tab-dash').classList.contains('hidden'))renderDash();updateSubmit()}
 
 /* ===== Tabs ===== */
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
 function switchTab(name){document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
-  ['new','bookings','units','map','exceptions','admin'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name))}
+  ['new','bookings','units','map','dash','exceptions','admin'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));if(name==='dash')renderDash()}
 
 /* ===== Stats ===== */
 function renderStats(){
@@ -853,6 +890,74 @@ $('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=
   const removed=extraCompanies().filter(c=>!comps.includes(c)&&Object.values(bookings).some(b=>isActive(b)&&b.company===c));
   if(removed.length)return toast(`لا يمكن حذف شركة عليها حجوزات نشطة: ${removed.join('، ')}`,true);
   await ROOT.child('config/lists').set({payMethods:pay,companies:comps,sheetWebApp:$('sheetUrl').value.trim()});await ROOT.child('companies').remove();log('تحديث القوائم','','',`شركات إضافية: ${comps.join('، ')||'لا شيء'}`);toast('تم حفظ القوائم')};
+
+/* ===== Dashboard ===== */
+let dGran='', dChart=null, dInit=false;
+const ymd=d=>{const z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`};
+const bDate=b=>(b.bookingDate&&/^\d{4}-\d{2}-\d{2}$/.test(b.bookingDate))?b.bookingDate:(b.createdAt?ymd(new Date(b.createdAt)):'');
+function bucketOf(ds,g){const d=new Date(ds+'T00:00:00');if(g==='month')return ds.slice(0,7);if(g==='week'){d.setDate(d.getDate()-d.getDay());return ymd(d)}return ds}
+function bucketLabel(k,g){if(g==='month'){const [y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn',{month:'short',year:'numeric'})}
+  const d=new Date(k+'T00:00:00');return (g==='week'?'أسبوع ':'')+d.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn',{day:'numeric',month:'short'})}
+function bucketsBetween(from,to,g){const out=[];let d=new Date(from+'T00:00:00');const end=new Date(to+'T00:00:00');let guard=0;
+  while(d<=end&&guard++<2000){const k=bucketOf(ymd(d),g);if(out[out.length-1]!==k)out.push(k);d.setDate(d.getDate()+1)}return out}
+function dashInit(){if(dInit)return;dInit=true;
+  fillSelect($('dDistrict'),DIST_IN_MASTER,'كل الأحياء');
+  const ds=Object.values(bookings).filter(isActive).map(bDate).filter(Boolean).sort();
+  $('dFrom').value=ds[0]||ymd(new Date(Date.now()-29*864e5));$('dTo').value=today();
+  ['dDistrict','dFrom','dTo'].forEach(i=>$(i).onchange=()=>{dQuickMark('');renderDash()});
+  $('dGran').onclick=e=>{const g=e.target.dataset.g;if(!g)return;dGran=g;renderDash()};
+  $('dQuick').onclick=e=>{const q=e.target.dataset.q;if(!q)return;
+    if(q==='all'){const a=Object.values(bookings).filter(isActive).map(bDate).filter(Boolean).sort();$('dFrom').value=a[0]||today()}
+    else $('dFrom').value=ymd(new Date(Date.now()-(+q-1)*864e5));
+    $('dTo').value=today();dGran='';dQuickMark(q);renderDash()};
+}
+function dQuickMark(q){$('dQuick').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.q===q))}
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function renderDash(){
+  if(!MASTER.length)return;dashInit();
+  const dist=$('dDistrict').value;let from=$('dFrom').value||today(),to=$('dTo').value||today();if(from>to)[from,to]=[to,from];
+  const days=Math.round((new Date(to)-new Date(from))/864e5)+1;
+  const g=dGran||(days<=45?'day':days<=200?'week':'month');
+  $('dGran').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.g===g));
+  // current unit status
+  const units=MASTER.filter(u=>!dist||u.district===dist);
+  const tally=us=>{const t={n:us.length,available:0,pending:0,approved:0};us.forEach(u=>t[unitStatus(u.id)]++);return t};
+  const pct=t=>t.n?Math.round((t.pending+t.approved)/t.n*100):0;
+  const occ=t=>`<div class="occ"><i><b style="width:${pct(t)}%"></b></i><span class="mono">${pct(t)}%</span></div>`;
+  const tot=tally(units);
+  // bookings in period
+  const inRange=Object.values(bookings).filter(b=>isActive(b)&&(!dist||b.district===dist)).filter(b=>{const d=bDate(b);return d&&d>=from&&d<=to});
+  const appr=inRange.filter(b=>b.status==='approved').length;
+  $('dKpis').innerHTML=[
+    ['الوحدات',tot.n,dist||'كل الأحياء'],['متاح',tot.available,`${tot.n?Math.round(tot.available/tot.n*100):0}% من الوحدات`],
+    ['المحجوز',tot.pending+tot.approved,`مبدئي ${tot.pending} · معتمد ${tot.approved}`],
+    ['حجوزات الفترة',inRange.length,`معتمد ${appr} · مبدئي ${inRange.length-appr}`]
+  ].map(([k,v,s])=>`<div class="stat"><div class="k">${k}</div><div class="v">${fmt(v)}</div><div class="s">${esc(s)}</div></div>`).join('');
+  // chart
+  const keys=bucketsBetween(from,to,g);const A=Object.fromEntries(keys.map(k=>[k,0])),P={...A};
+  inRange.forEach(b=>{const k=bucketOf(bDate(b),g);if(k in A)(b.status==='approved'?A:P)[k]++});
+  const green=cssVar('--green')||'#1f4d3a',gold=cssVar('--gold')||'#b8963e',muted=cssVar('--muted')||'#7a7a7a',line=cssVar('--line')||'#e6e3dc';
+  const data={labels:keys.map(k=>bucketLabel(k,g)),datasets:[
+    {label:'معتمد',data:keys.map(k=>A[k]),backgroundColor:green,borderRadius:4,stack:'s'},
+    {label:'مبدئي',data:keys.map(k=>P[k]),backgroundColor:gold,borderRadius:4,stack:'s'}]};
+  if(window.Chart){
+    const opts={responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{position:'top',align:'end',labels:{color:muted,font:{family:'inherit'}}},tooltip:{rtl:true,callbacks:{footer:it=>'المجموع: '+it.reduce((a,x)=>a+x.parsed.y,0)}}},
+      scales:{x:{stacked:true,reverse:true,grid:{display:false},ticks:{color:muted,maxRotation:0,autoSkip:true}},
+              y:{stacked:true,beginAtZero:true,position:'right',ticks:{color:muted,precision:0},grid:{color:line},title:{display:true,text:'عدد الحجوزات',color:muted}}}};
+    if(dChart){dChart.data=data;dChart.options=opts;dChart.update()}else dChart=new Chart($('dChart'),{type:'bar',data,options:opts});
+  }
+  $('dChartNote').textContent=`${fmt(inRange.length)} حجز من ${from} إلى ${to} · التجميع ${g==='day'?'يومي':g==='week'?'أسبوعي (يبدأ الأحد)':'شهري'} · حسب تاريخ الحجز`;
+  // per district
+  const dlist=dist?[dist]:DIST_IN_MASTER;
+  $('dDistBody').innerHTML=dlist.map(d=>{const t=tally(MASTER.filter(u=>u.district===d));
+    return `<tr><td><b>${esc(d)}</b></td><td>${t.n}</td><td>${t.available}</td><td>${t.pending}</td><td>${t.approved}</td><td><b>${t.pending+t.approved}</b></td><td>${occ(t)}</td></tr>`}).join('')
+    +(dist?'':`<tr style="font-weight:800"><td>الإجمالي</td><td>${tot.n}</td><td>${tot.available}</td><td>${tot.pending}</td><td>${tot.approved}</td><td>${tot.pending+tot.approved}</td><td>${occ(tot)}</td></tr>`);
+  // per model
+  const rows=[];dlist.forEach(d=>{[...new Set(MASTER.filter(u=>u.district===d).map(u=>u.model))].sort().forEach(m=>{rows.push([d,m,tally(MASTER.filter(u=>u.district===d&&u.model===m))])})});
+  $('dModelBody').innerHTML=rows.map(([d,m,t])=>`<tr><td>${esc(d)}</td><td class="mono"><b>${esc(m)}</b></td><td>${t.n}</td><td>${t.available}</td><td>${t.pending}</td><td>${t.approved}</td><td>${occ(t)}</td></tr>`).join('');
+}
+$('themeBtn').addEventListener('click',()=>{if(dChart&&!$('tab-dash').classList.contains('hidden'))setTimeout(renderDash,0)});
 
 /* ===== Excel export ===== */
 function csv(name,head,rows){

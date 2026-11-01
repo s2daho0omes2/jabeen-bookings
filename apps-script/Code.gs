@@ -5,7 +5,6 @@
  * - مؤقت زمني يعيد المزامنة كل 5 دقائق كشبكة أمان.
  */
 var FIREBASE = 'https://jabeen-bookings-default-rtdb.europe-west1.firebasedatabase.app/jabeenBookings';
-var MASTER_URL = 'https://jabeen-bookings.online/master.json';
 var STATUS_AR = { available: 'متاحة', pending: 'مبدئي', approved: 'معتمد', rejected: 'مرفوض', cancelled: 'ملغي' };
 var ROLE_AR = { maker: 'مُدخل', checker: 'مُراجع', admin: 'مدير' };
 
@@ -35,7 +34,8 @@ function syncAll() {
   try {
     var bookings = fetchJson_(FIREBASE + '/bookings.json') || {};
     var audit = fetchJson_(FIREBASE + '/audit.json') || {};
-    var master = fetchJson_(MASTER_URL) || [];
+    var mo = fetchJson_(FIREBASE + '/master.json') || {};
+    var master = Object.keys(mo).sort().map(function (k) { return mo[k]; });
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
     // ---------- الحجوزات ----------
