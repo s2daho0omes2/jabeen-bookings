@@ -79,9 +79,10 @@ function syncAll() {
     writeSheet_(ss, 'ملخص', ['التخصيص', 'إجمالي الوحدات', 'متاحة', 'مبدئي', 'معتمد'], sRows);
 
     // ترتيب الأوراق وحذف الورقة الافتراضية الفارغة
-    ['ملخص', 'الحجوزات', 'الوحدات', 'سجل الحركات'].forEach(function (n, i) { ss.setActiveSheet(ss.getSheetByName(n)); ss.moveActiveSheet(i + 1); });
-    var def = ss.getSheetByName('Sheet1') || ss.getSheetByName('ورقة1');
-    if (def && ss.getSheets().length > 4) ss.deleteSheet(def);
+    var ORDER = ['الحجوزات', 'الوحدات', 'سجل الحركات', 'ملخص'];
+    ORDER.forEach(function (n, i) { ss.setActiveSheet(ss.getSheetByName(n)); ss.moveActiveSheet(i + 1); });
+    ss.getSheets().forEach(function (sh) { if (ORDER.indexOf(sh.getName()) < 0 && sh.getLastRow() === 0) ss.deleteSheet(sh); });
+    ss.setActiveSheet(ss.getSheetByName('الحجوزات'));
 
     return { ok: true, bookings: list.length, units: master.length, at: new Date().toISOString() };
   } finally { lock.releaseLock(); }
