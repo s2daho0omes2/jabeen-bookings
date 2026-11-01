@@ -147,7 +147,8 @@ tr:hover td{background:var(--hover)}
 .exc h4{color:var(--green);font-size:17px;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
 .exc h4 .n{background:var(--red);color:#fff;border-radius:20px;font-size:12px;padding:1px 9px}
 .exc h4 .n.zero{background:var(--ok)}
-@media (max-width:640px){.card{padding:18px 16px;border-radius:18px}.tab{padding:8px 12px;font-size:14px}}
+@media (max-width:640px){.card{padding:18px 16px;border-radius:18px}.tab{padding:8px 12px;font-size:14px}
+.combo .list{max-height:150px;border-radius:10px}.combo .opt{padding:7px 10px;font-size:14px;align-items:center}.combo .opt span{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 @media print{.topbar,.tabs,.toolbar,.actions,.btn{display:none!important}.card{box-shadow:none;border:1px solid #ccc}}
 </style>
 </head>
@@ -987,7 +988,7 @@ function availableUnits(){
   return MASTER.filter(u=>u.district===d&&unitStatus(u.id)==='available')
     .filter(u=>!q||String(parseInt(u.plot,10)).startsWith(String(parseInt(q,10)))).sort((a,b)=>a.id.localeCompare(b.id));
 }
-$('fDistrict').onchange=()=>{clearUnit();const ready=!!$('fDistrict').value;$('fUnit').disabled=!ready;$('fUnit').value='';renderFormMap();if(ready){$('fUnit').focus();openList()}};
+$('fDistrict').onchange=()=>{clearUnit();const ready=!!$('fDistrict').value;$('fUnit').disabled=!ready;$('fUnit').value='';renderFormMap();if(ready&&!isPhone()){$('fUnit').focus();openList()}};
 $('fCompany').onchange=()=>{checkCompany();updateSubmit()};
 function checkCompany(){const c=$('fCompany').value;$('compErr').textContent=(selectedUnit&&c&&selectedUnit.company!==UNALLOC&&selectedUnit.company!==c)?`⛔ الوحدة ${selectedUnit.id} مخصصة لشركة ${selectedUnit.company}`:''}
 $('fUnit').addEventListener('input',()=>{$('fUnit').value=sanitizeDigits($('fUnit').value).slice(0,3);const q=$('fUnit').value;
@@ -1004,7 +1005,8 @@ $('fUnit').addEventListener('keydown',e=>{const opts=[...$('unitList').querySele
   else if(e.key==='Escape'){closeList()}});
 document.addEventListener('click',e=>{if(!e.target.closest('.combo'))closeList()});
 function paintHl(opts){opts.forEach((o,i)=>o.classList.toggle('hl',i===hl));if(opts[hl])opts[hl].scrollIntoView({block:'nearest'})}
-function openList(){if(!$('fDistrict').value)return;const list=availableUnits();hl=-1;
+const isPhone=()=>window.matchMedia('(max-width:640px)').matches;
+function openList(){if(!$('fDistrict').value)return;if(isPhone()&&!sanitizeDigits($('fUnit').value)){closeList();return}const list=availableUnits();hl=-1;
   $('unitList').innerHTML=list.length?list.slice(0,200).map(u=>`<div class="opt" data-id="${u.id}"><b>قطعة ${parseInt(u.plot,10)} <span class="muted" style="font-weight:500">(${u.id})</span></b><span>${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model} · ${fmt(u.price)} ر.س · ${esc(u.company)}</span></div>`).join('')+(list.length>200?`<div class="none">… و${list.length-200} وحدة أخرى، اكتب للتصفية</div>`:''):'<div class="none">لا توجد قطع متاحة مطابقة</div>';
   $('unitList').classList.remove('hidden');
   $('unitList').querySelectorAll('.opt').forEach(o=>o.onclick=()=>selectUnit(o.dataset.id))}
