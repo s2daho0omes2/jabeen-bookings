@@ -171,12 +171,26 @@ tr:hover td{background:var(--hover)}
   <!-- LOGIN -->
   <div id="loginView" class="card login">
     <h2>الدخول</h2>
-    <div class="hint">اختر دورك وأدخل الرمز السري. اسمك يُسجَّل على كل حجز تدخله أو تعتمده.</div>
-    <div class="f"><label>الدور</label>
-      <select id="lgRole"><option value="maker">مُدخل بيانات</option><option value="checker">مُراجع (معتمد)</option><option value="admin">مدير النظام</option></select></div>
-    <div class="f"><label>الاسم</label><input id="lgName" placeholder="اسمك الثلاثي" autocomplete="name"></div>
-    <div class="f"><label>الرمز السري</label><input id="lgPin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off"><div class="err" id="lgErr"></div></div>
-    <button class="btn" id="lgBtn" style="width:100%">دخول</button>
+    <div id="lgStep1">
+      <div class="hint">اكتب بريدك المسجّل وبيوصلك رابط دخول صالح لمرة واحدة. الدخول ينتهي عند تحديث الصفحة أو إغلاقها، أو بعد 30 دقيقة بدون نشاط.</div>
+      <div class="f"><label>البريد الإلكتروني</label><input id="lgEmail" type="email" dir="ltr" autocomplete="email" placeholder="name@example.com"></div>
+      <button class="btn" id="lgBtn" style="width:100%">إرسال رابط الدخول</button>
+    </div>
+    <div id="lgStep2" class="hidden">
+      <div class="hint">إذا كان البريد <b dir="ltr" id="lgSentTo"></b> مصرحاً له، بيوصله رابط الدخول خلال دقيقة. افتح الرابط من نفس الجهاز والمتصفح. (تأكد من مجلد الرسائل غير المرغوبة)</div>
+      <button class="btn sec" id="lgBack" style="width:100%">رجوع</button>
+    </div>
+    <div id="lgStep3" class="hidden">
+      <div class="hint">فتحت الرابط من جهاز أو متصفح مختلف. أكّد بريدك لإكمال الدخول.</div>
+      <div class="f"><label>البريد الإلكتروني</label><input id="lgConfirmEmail" type="email" dir="ltr" autocomplete="email"></div>
+      <button class="btn" id="lgConfirmBtn" style="width:100%">إكمال الدخول</button>
+    </div>
+    <div id="lgStepName" class="hidden">
+      <div class="hint">أول دخول لك: اكتب اسمك، بيُسجَّل على كل حجز تدخله أو تعتمده.</div>
+      <div class="f"><label>الاسم</label><input id="lgName" placeholder="اسمك الثلاثي" autocomplete="name"></div>
+      <button class="btn" id="lgNameBtn" style="width:100%">متابعة</button>
+    </div>
+    <div class="err" id="lgErr"></div>
   </div>
 
   <!-- APP -->
@@ -308,14 +322,15 @@ tr:hover td{background:var(--hover)}
     <!-- ADMIN -->
     <section id="tab-admin" class="hidden">
       <div class="card">
-        <h2>الرموز السرية</h2>
-        <div class="hint">غيّر الرموز الافتراضية فور أول دخول. الرمز لا يُحفظ كنص بل كبصمة مشفرة.</div>
+        <h2>المستخدمون المصرح لهم</h2>
+        <div class="hint">فقط هذه الإيميلات تقدر تدخل النظام، والدخول برابط يُرسل للبريد كل مرة. المدير الرئيسي ثابت ولا يمكن حذفه أو تغيير صلاحيته.</div>
         <div class="grid">
-          <div class="f"><label>رمز المُدخل</label><input id="pinMaker" type="password" placeholder="رمز جديد"></div>
-          <div class="f"><label>رمز المُراجع</label><input id="pinChecker" type="password" placeholder="رمز جديد"></div>
-          <div class="f"><label>رمز المدير</label><input id="pinAdmin" type="password" placeholder="رمز جديد"></div>
+          <div class="f"><label>البريد الإلكتروني</label><input id="usrEmail" type="email" dir="ltr" placeholder="name@example.com"></div>
+          <div class="f"><label>الاسم (اختياري)</label><input id="usrName"></div>
+          <div class="f"><label>الصلاحية</label><select id="usrRole"><option value="maker">مُدخل بيانات</option><option value="checker">مُراجع (معتمد)</option><option value="admin">مدير النظام</option></select></div>
         </div>
-        <div class="actions"><button class="btn" id="savePins">حفظ الرموز</button></div>
+        <div class="actions"><button class="btn" id="addUser">إضافة / تحديث</button></div>
+        <div class="tblwrap"><table><thead><tr><th>البريد</th><th>الاسم</th><th>الصلاحية</th><th></th></tr></thead><tbody id="usersBody"></tbody></table></div>
       </div>
       <div class="card">
         <h2>القوائم المنسدلة</h2>
@@ -340,6 +355,7 @@ tr:hover td{background:var(--hover)}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 /* ===== MASTER DATA (generated from the master sheet; edit only via the sheet) =====
@@ -871,15 +887,16 @@ function refreshCompanies(){
 }
 const MODELS = [...new Set(MASTER.map(u=>u.model))].sort();
 const DEFAULT_PAY = ['تمويل بنكي','دفع نقدي','تمويل بنكي + دعم سكني','برنامج الشركة','أخرى'];
-const DEFAULT_PINS = {maker:'1111',checker:'2222',admin:'2026'};
-const OPEN_ACCESS = true; // true = لا تسجيل دخول: الموقع مفتوح للجميع بصلاحيات كاملة (يُعاد التفعيل لاحقاً بجعلها false)
 const STATUS_AR = {available:'متاحة',pending:'مبدئي',approved:'معتمد',rejected:'مرفوض',cancelled:'ملغي'};
 const ROLE_AR = {maker:'مُدخل',checker:'مُراجع',admin:'مدير'};
 
 /* ===== Firebase ===== */
 firebase.initializeApp({
+  apiKey:"AIzaSyBs6zMzOL4ggegfLYIPgSb_RDqYXNf1cuo",
+  authDomain:"jabeen-bookings.firebaseapp.com",
   projectId:"jabeen-bookings",
-  databaseURL:"https://jabeen-bookings-default-rtdb.europe-west1.firebasedatabase.app"
+  databaseURL:"https://jabeen-bookings-default-rtdb.europe-west1.firebasedatabase.app",
+  appId:"1:770648113318:web:be1ab6ef9426eb074eb467"
 });
 const db = firebase.database();
 const ROOT = db.ref('jabeenBookings');
@@ -890,7 +907,8 @@ let idxUnit = {};         // unitId -> bid
 let idxNat = {};          // natId -> bid
 let config = {pins:null, lists:null};
 let audit = {};
-let session = null;       // {role,name}
+let session = null;       // {role,name,email}
+let users = {};
 let selectedUnit = null;
 let hl = -1;
 
@@ -918,32 +936,75 @@ $('themeBtn').onclick=()=>{const d=document.documentElement.dataset.theme==='dar
 db.ref('.info/connected').on('value',s=>{const on=!!s.val();$('connDot').className='dot'+(on?' on':'');$('connTxt').textContent=on?'متصل':'غير متصل'});
 
 /* ===== Login ===== */
-ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();refreshCompanies();fillAdminLists();if(started)renderAll()},e=>{showDbError(e)});
 function showDbError(e){
   const msg=String(e&&e.message||e);
   if(/permission/i.test(msg)){
-    const t='قاعدة البيانات لا تسمح بالوصول لمسار jabeenBookings. يلزم تحديث قواعد Firebase أولاً — الحجوزات لن تُحفظ.';
-    $('lgErr').textContent=t;
+    const t='لا تملك صلاحية الوصول لقاعدة البيانات. سجّل الدخول من جديد أو راجع مدير النظام.';
     if(!$('dbErr')){const d=document.createElement('div');d.id='dbErr';d.className='banner red';d.textContent='⛔ '+t;$('appView').prepend(d)}
   }
 }
-$('lgBtn').onclick=login; $('lgPin').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-async function login(){
-  const role=$('lgRole').value,name=$('lgName').value.trim(),pin=$('lgPin').value.trim();
-  $('lgErr').textContent='';
-  if(!name){$('lgErr').textContent='اكتب اسمك';return}
-  if(!pin){$('lgErr').textContent='أدخل الرمز السري';return}
-  const stored=config.pins&&config.pins[role];
-  const ok = stored ? (await sha(pin))===stored : pin===DEFAULT_PINS[role];
-  if(!ok){$('lgErr').textContent='الرمز غير صحيح';return}
-  session={role,name};try{sessionStorage.setItem('jb-session',JSON.stringify(session))}catch(e){}
-  enterApp(); if(!stored&&role==='admin')toast('أنت تستخدم الرموز الافتراضية — غيّرها من الإعدادات',true);
+/* ===== Auth: one-time email link, no saved session ===== */
+const SUPER_ADMIN='s2.daho0ome.s2@gmail.com';
+const IDLE_MS=30*60*1000;
+const auth=firebase.auth(); auth.languageCode='ar';
+const authReady=auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+const emailKey=e=>String(e||'').trim().toLowerCase().replace(/\./g,',');
+const validEmail=e=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+let me=null;
+function lgShow(step){['lgStep1','lgStep2','lgStep3','lgStepName'].forEach(i=>$(i).classList.toggle('hidden',i!==step))}
+function lgErr(t){$('lgErr').textContent=t||''}
+function authErrAr(e){const c=String(e&&e.code||'');
+  if(/too-many|quota/.test(c))return 'محاولات كثيرة، حاول بعد قليل';
+  if(/invalid-action-code|expired/.test(c))return 'الرابط منتهي أو مستخدم من قبل. اطلب رابط جديد.';
+  if(/invalid-email/.test(c))return 'البريد غير صحيح، أو لا يطابق البريد اللي انرسل له الرابط';
+  if(/network/.test(c))return 'تعذّر الاتصال بالإنترنت';
+  return 'تعذّر الدخول، حاول مرة ثانية'}
+async function sendLink(){
+  const email=$('lgEmail').value.trim().toLowerCase();lgErr('');
+  if(!validEmail(email))return lgErr('اكتب بريد صحيح');
+  $('lgBtn').disabled=true;
+  try{await authReady;await auth.sendSignInLinkToEmail(email,{url:location.origin+location.pathname,handleCodeInApp:true});
+    try{localStorage.setItem('jb-emailForSignIn',email)}catch(e){}
+    $('lgSentTo').textContent=email;lgShow('lgStep2');
+  }catch(e){lgErr(authErrAr(e))}finally{$('lgBtn').disabled=false}
 }
-$('logoutBtn').onclick=()=>{session=null;try{sessionStorage.removeItem('jb-session')}catch(e){};location.reload()};
+async function completeLink(email){
+  lgErr('');
+  try{await authReady;await auth.signInWithEmailLink(email,location.href)}
+  catch(e){lgShow('lgStep1');lgErr(authErrAr(e))}
+  finally{history.replaceState(null,'',location.origin+location.pathname);try{localStorage.removeItem('jb-emailForSignIn')}catch(e){}}
+}
+$('lgBtn').onclick=sendLink;$('lgEmail').addEventListener('keydown',e=>{if(e.key==='Enter')sendLink()});
+$('lgBack').onclick=()=>{lgErr('');lgShow('lgStep1')};
+$('lgConfirmBtn').onclick=()=>{const em=$('lgConfirmEmail').value.trim().toLowerCase();if(!validEmail(em))return lgErr('اكتب بريدك');completeLink(em)};
+$('lgNameBtn').onclick=async()=>{const n=$('lgName').value.trim();if(n.length<3)return lgErr('اكتب اسمك');
+  try{await ROOT.child('users/'+me.key+'/name').set(n)}catch(e){}
+  begin(n)};
+$('logoutBtn').onclick=()=>auth.signOut();
+auth.onAuthStateChanged(async user=>{
+  if(!user){if(session)location.reload();return}
+  const email=String(user.email||'').toLowerCase();
+  let rec=null;
+  if(user.emailVerified){try{rec=(await ROOT.child('users/'+emailKey(email)).once('value')).val()}catch(e){rec=null}}
+  if(user.emailVerified&&email===SUPER_ADMIN)rec={...(rec||{}),role:'admin'};
+  if(!rec||!['maker','checker','admin'].includes(rec.role)){await auth.signOut();lgShow('lgStep1');lgErr('هذا البريد غير مصرح له بالدخول.');return}
+  me={email,key:emailKey(email),rec};
+  if(!rec.name){lgShow('lgStepName');lgErr('');return}
+  begin(rec.name);
+});
+function begin(name){
+  session={role:me.rec.role,name,email:me.email};enterApp();
+  let t;const reset=()=>{clearTimeout(t);t=setTimeout(()=>auth.signOut(),IDLE_MS)};
+  ['mousemove','keydown','click','touchstart','scroll'].forEach(ev=>addEventListener(ev,reset,{passive:true}));reset();
+}
+if(auth.isSignInWithEmailLink(location.href)){
+  let em=null;try{em=localStorage.getItem('jb-emailForSignIn')}catch(e){}
+  if(em)completeLink(em);else lgShow('lgStep3');
+}
 
 function enterApp(){
   $('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');
-  $('rolePill').classList.remove('hidden');$('rolePill').textContent=`${ROLE_AR[session.role]} · ${session.name}`;
+  $('rolePill').classList.remove('hidden');$('rolePill').textContent=`${ROLE_AR[session.role]} · ${session.name}`;$('rolePill').title=session.email;
   if(session.role==='admin')$('adminTab').classList.remove('hidden');
   if(session.role==='checker'){switchTab('bookings')}
   initMap();renderAll();startData();
@@ -953,6 +1014,8 @@ function enterApp(){
 let started=false;
 function startData(){
   if(started)return;started=true;
+  ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();refreshCompanies();fillAdminLists();renderAll()},showDbError);
+  if(session.role==='admin')ROOT.child('users').on('value',s=>{users=s.val()||{};renderUsers()},showDbError);
   ROOT.child('bookings').on('value',s=>{bookings=s.val()||{};renderAll()},showDbError);
   ROOT.child('idx/unit').on('value',s=>{idxUnit=s.val()||{};renderAll()});
   ROOT.child('idx/natId').on('value',s=>{idxNat=s.val()||{};renderAll()});
@@ -1259,9 +1322,21 @@ $('excExport').onclick=()=>csv('تقرير_التدقيق',['نوع الاستث
 
 /* ===== Admin ===== */
 function fillAdminLists(){if($('listPay'))$('listPay').value=payMethods().join('\n');if($('listCompanies'))$('listCompanies').value=extraCompanies().join('\n');if($('sheetUrl'))$('sheetUrl').value=(config.lists&&config.lists.sheetWebApp)||''}
-$('savePins').onclick=async()=>{const p={...(config.pins||{})};let n=0;
-  for(const [k,id] of [['maker','pinMaker'],['checker','pinChecker'],['admin','pinAdmin']]){const v=$(id).value.trim();if(v){if(v.length<4)return toast('الرمز 4 أحرف على الأقل',true);p[k]=await sha(v);n++}}
-  if(!n)return toast('لم تدخل أي رمز جديد',true);await ROOT.child('config/pins').set(p);['pinMaker','pinChecker','pinAdmin'].forEach(i=>$(i).value='');log('تغيير الرموز','','',`${n} رمز`);toast('تم حفظ الرموز')};
+function renderUsers(){
+  const rows=Object.entries(users).filter(([k,u])=>u&&u.role).map(([k,u])=>({k,email:u.email||k.replace(/,/g,'.'),name:u.name||'',role:u.role}));
+  if(!rows.some(r=>r.email===SUPER_ADMIN))rows.unshift({k:emailKey(SUPER_ADMIN),email:SUPER_ADMIN,name:'',role:'admin'});
+  $('usersBody').innerHTML=rows.sort((a,b)=>a.email.localeCompare(b.email)).map(r=>`<tr><td class="mono" dir="ltr">${esc(r.email)}</td><td>${esc(r.name)}</td><td>${r.email===SUPER_ADMIN?'مدير رئيسي':esc(ROLE_AR[r.role]||r.role)}</td><td>${r.email===SUPER_ADMIN||r.email===session.email?'':`<button class="btn danger sm" data-del="${esc(r.k)}">حذف</button>`}</td></tr>`).join('');
+}
+$('usersBody').addEventListener('click',async e=>{const k=e.target&&e.target.dataset&&e.target.dataset.del;if(!k)return;
+  const u=users[k]||{};const em=u.email||k.replace(/,/g,'.');
+  if(!confirm(`حذف صلاحية ${em}؟ بيُمنع من الدخول فوراً.`))return;
+  await ROOT.child('users/'+k).remove();log('حذف مستخدم','','',em);toast('تم حذف المستخدم')});
+$('addUser').onclick=async()=>{const em=$('usrEmail').value.trim().toLowerCase(),name=$('usrName').value.trim(),role=$('usrRole').value;
+  if(!validEmail(em))return toast('اكتب بريد صحيح',true);
+  if(em===SUPER_ADMIN)return toast('المدير الرئيسي ثابت',true);
+  const k=emailKey(em);const old=users[k]||{};
+  await ROOT.child('users/'+k).set({email:em,name:name||old.name||'',role,addedBy:session.email,addedAt:Date.now()});
+  log(old.role?'تحديث مستخدم':'إضافة مستخدم','','',`${em} · ${ROLE_AR[role]}`);$('usrEmail').value='';$('usrName').value='';toast('تم الحفظ')};
 $('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!pay.length)return toast('أضف طريقة دفع واحدة على الأقل',true);
   const comps=[...new Set($('listCompanies').value.split('\n').map(s=>s.trim()).filter(c=>c&&!BASE_COMPANIES.includes(c)&&c!==UNALLOC))];
   const removed=extraCompanies().filter(c=>!comps.includes(c)&&Object.values(bookings).some(b=>isActive(b)&&b.company===c));
@@ -1278,15 +1353,6 @@ function csv(name,head,rows){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31));
   wb.Workbook={Views:[{RTL:true}]};
   XLSX.writeFile(wb,`${name}_${today()}.xlsx`);
-}
-/* ===== startup: open access or restore saved session ===== */
-if(OPEN_ACCESS){
-  let nm='';try{nm=localStorage.getItem('jb-name')||''}catch(e){}
-  session={role:'admin',name:nm||'مستخدم'};$('namePill').classList.remove('hidden');$('userName').value=nm;
-  $('userName').addEventListener('input',()=>{session.name=$('userName').value.trim()||'مستخدم';try{localStorage.setItem('jb-name',$('userName').value.trim())}catch(e){}});
-  enterApp();$('rolePill').classList.add('hidden');$('logoutBtn').classList.add('hidden');
-}else{
-  try{const s=JSON.parse(sessionStorage.getItem('jb-session'));if(s&&s.role&&s.name){session=s;enterApp()}}catch(e){}
 }
 </script>
 </body>

@@ -1,0 +1,31 @@
+{
+  "rules": {
+    "jabeenBookings": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 's2.daho0ome.s2@gmail.com' || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists())",
+      ".write": "auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 's2.daho0ome.s2@gmail.com' || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'admin')",
+      "bookings": {
+        "$bid": {
+          ".write": "newData.exists() && auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists()"
+        }
+      },
+      "idx": {
+        ".write": "auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists()"
+      },
+      "counters": {
+        ".write": "auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists()"
+      },
+      "audit": {
+        "$id": {
+          ".write": "!data.exists() && newData.exists() && auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists()"
+        }
+      },
+      "users": {
+        "$k": {
+          "name": {
+            ".write": "auth != null && auth.token.email_verified == true && $k == auth.token.email.toLowerCase().replace('.', ',') && root.child('jabeenBookings/users/' + $k + '/role').exists() && newData.isString() && newData.val().length < 80"
+          }
+        }
+      }
+    }
+  }
+}

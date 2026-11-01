@@ -6,7 +6,8 @@
 - `master.json` — نفس الجدول الرئيسي بصيغة JSON (مع إحداثيات الفلل على المخطط).
 - الحجوزات والفهارس والرموز تُحفظ في Firebase Realtime Database في مشروع Firebase المستقل `jabeen-bookings` (أوروبا) تحت المسار `jabeenBookings/` — لا توجد أي بيانات عملاء في هذا المستودع.
 
-## قواعد Firebase المطلوبة
-```json
-"jabeenBookings": { ".read": true, ".write": true }
-```
+## ## الدخول والصلاحيات
+- الدخول برابط يُرسل للبريد كل مرة (Firebase Authentication · Email link)، والجلسة لا تُحفظ: تنتهي بالتحديث أو الإغلاق أو بعد 30 دقيقة خمول.
+- الإيميلات المصرح لها في `jabeenBookings/users` وتُدار من تبويب «الإعدادات» بواسطة مدير النظام.
+- قواعد قاعدة البيانات في `database.rules.json` (تُنسخ إلى Realtime Database ثم Rules). لا تُعِد القواعد المفتوحة.
+- سكربت مزامنة Google Sheets يقرأ بصلاحية حساب Google المالك (انظر `apps-script/appsscript.json`).

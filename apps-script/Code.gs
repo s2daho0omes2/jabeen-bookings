@@ -21,7 +21,10 @@ function setupTrigger() {
 }
 
 function fetchJson_(url) {
-  var r = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  var opts = { muteHttpExceptions: true };
+  // قاعدة البيانات مقفلة: السكربت يقرأ بصلاحية حساب Google المالك لمشروع Firebase
+  if (url.indexOf(FIREBASE) === 0) opts.headers = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+  var r = UrlFetchApp.fetch(url, opts);
   if (r.getResponseCode() !== 200) throw new Error('HTTP ' + r.getResponseCode() + ' ' + url);
   return JSON.parse(r.getContentText());
 }
