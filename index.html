@@ -327,7 +327,7 @@ tr:hover td{background:var(--hover)}
         <div class="grid">
           <div class="f"><label>البريد الإلكتروني</label><input id="usrEmail" type="email" dir="ltr" placeholder="name@example.com"></div>
           <div class="f"><label>الاسم (اختياري)</label><input id="usrName"></div>
-          <div class="f"><label>الصلاحية</label><select id="usrRole"><option value="maker">مُدخل بيانات</option><option value="checker">مُراجع (معتمد)</option><option value="admin">مدير النظام</option></select></div>
+          <div class="f"><label>الصلاحية</label><select id="usrRole"><option value="maker">مُدخل بيانات</option><option value="checker">مُراجع ومُدخل بيانات</option><option value="admin">مدير النظام</option></select></div>
         </div>
         <div class="actions"><button class="btn" id="addUser">إضافة / تحديث</button></div>
         <div class="tblwrap"><table><thead><tr><th>البريد</th><th>الاسم</th><th>الصلاحية</th><th></th></tr></thead><tbody id="usersBody"></tbody></table></div>
@@ -888,7 +888,7 @@ function refreshCompanies(){
 const MODELS = [...new Set(MASTER.map(u=>u.model))].sort();
 const DEFAULT_PAY = ['تمويل بنكي','دفع نقدي','تمويل بنكي + دعم سكني','برنامج الشركة','أخرى'];
 const STATUS_AR = {available:'متاحة',pending:'مبدئي',approved:'معتمد',rejected:'مرفوض',cancelled:'ملغي'};
-const ROLE_AR = {maker:'مُدخل',checker:'مُراجع',admin:'مدير'};
+const ROLE_AR = {maker:'مُدخل',checker:'مُراجع ومُدخل',admin:'مدير'};
 
 /* ===== Firebase ===== */
 firebase.initializeApp({
@@ -1006,7 +1006,6 @@ function enterApp(){
   $('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');
   $('rolePill').classList.remove('hidden');$('rolePill').textContent=`${ROLE_AR[session.role]} · ${session.name}`;$('rolePill').title=session.email;
   if(session.role==='admin')$('adminTab').classList.remove('hidden');
-  if(session.role==='checker'){switchTab('bookings')}
   initMap();renderAll();startData();
 }
 
@@ -1124,7 +1123,7 @@ function showProblems(P){
   $('formBanner').innerHTML=`<div class="banner red" style="display:block">⛔ لا يمكن تسجيل الحجز، أكمل التالي:<ul style="margin:8px 18px 0 0;font-weight:500">${P.map(([id,m])=>`<li style="cursor:pointer" onclick="document.getElementById('${id}').focus()">${esc(m)}</li>`).join('')}</ul></div>`;
   $(P[0][0]).focus();$('formBanner').scrollIntoView({block:'nearest'});
 }
-function updateSubmit(){$('submitBtn').disabled=!session||session.role==='checker';
+function updateSubmit(){$('submitBtn').disabled=!session;
   if($('formBanner').querySelector('.banner.red')&&formValid()){$('formBanner').innerHTML='';document.querySelectorAll('.f .bad').forEach(e=>e.classList.remove('bad'))}}
 $('resetBtn').onclick=resetForm;
 function resetForm(){clearUnit();['fNatId','fName','fEmp','fPhone','fNotes'].forEach(i=>$(i).value='');$('fPay').value='';$('fCompany').value='';$('fDate').value=today();$('natErr').textContent='';$('phoneErr').textContent='';$('formBanner').innerHTML='';updateSubmit()}
@@ -1175,7 +1174,7 @@ function renderBookings(){
 }
 function actionsFor(b){const r=session.role;let h=`<button class="btn sec sm" data-act="view" data-bid="${b.bid}">عرض</button> `;
   if(b.status==='pending'&&(r==='checker'||r==='admin')){if(b.maker===session.name&&r!=='admin')h+=`<span class="muted" style="font-size:12px">لا يمكن اعتماد حجزك</span>`;else h+=`<button class="btn sm" data-act="approve" data-bid="${b.bid}">اعتماد</button> <button class="btn danger sm" data-act="reject" data-bid="${b.bid}">رفض</button>`}
-  if(b.status==='pending'&&r==='maker'&&b.maker===session.name)h+=`<button class="btn danger sm" data-act="cancel" data-bid="${b.bid}">إلغاء</button>`;
+  if(b.status==='pending'&&(r==='maker'||r==='checker')&&b.maker===session.name)h+=`<button class="btn danger sm" data-act="cancel" data-bid="${b.bid}">إلغاء</button>`;
   if(b.status==='approved'&&r==='admin')h+=`<button class="btn danger sm" data-act="cancel" data-bid="${b.bid}">إلغاء الحجز</button>`;
   return h}
 async function doAction(act,bid){
@@ -1242,7 +1241,7 @@ function showUnit(id){const u=MASTER_BY_ID[id];const b=activeBookingForUnit(id);
     <div>الحي / البلوك</div><div>${esc(u.district)} · بلوك ${u.block}</div><div>النموذج</div><div>${u.model} · ${u.bed} غرف · ${u.bath} حمامات</div><div>المساحة</div><div>أرض ${fmt(u.plotArea)} م² · بناء ${fmt(u.builtArea)} م²</div><div>السعر</div><div>${fmt(u.price)} ر.س</div><div>التخصيص</div><div>${esc(u.company)}</div>`;
   if(b)h+=`<div>كود الحجز</div><div class="mono"><b>${esc(b.refNo||'')}</b></div><div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId||'—')}</div><div>الجوال</div><div class="mono">${esc(b.phone||'—')}</div><div>الشركة</div><div>${esc(b.company)}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>المُدخل</div><div>${esc(b.maker)} · ${fmtTime(b.createdAt)}</div><div>المُراجع</div><div>${esc(b.checker||'—')}</div>`;
   h+=`</div><div class="actions">`;
-  if(!b&&session.role!=='checker')h+=`<button class="btn" onclick="closeModal();bookFromMap('${u.id}')">حجز هذه الوحدة</button>`;
+  if(!b)h+=`<button class="btn" onclick="closeModal();bookFromMap('${u.id}')">حجز هذه الوحدة</button>`;
   h+=`<button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;showModal(h)}
 function bookFromMap(id){const u=MASTER_BY_ID[id];switchTab('new');resetForm();
   $('fDistrict').value=u.district;$('fDistrict').dispatchEvent(new Event('change'));selectUnit(id)}
