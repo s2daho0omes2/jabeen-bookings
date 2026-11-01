@@ -130,6 +130,7 @@ tr:hover td{background:var(--hover)}
 .mk:hover{transform:translate(-50%,-50%) scale(1.5);z-index:5}
 .mk.pending{background-image:radial-gradient(circle,#fff 0 30%,transparent 31%)!important}
 .mk.hit{box-shadow:0 0 0 5px rgba(255,0,0,.75);z-index:6}
+.spot{position:absolute;inset:0;pointer-events:none;z-index:4;transition:background .25s}
 /* login */
 .login{max-width:440px;margin:60px auto}
 .login .f{margin-bottom:14px}
@@ -205,7 +206,7 @@ tr:hover td{background:var(--hover)}
         <div id="unitBanner"></div>
         <div id="formMapBox" class="hidden" style="margin:10px 0 4px">
           <div class="toolbar" style="margin-bottom:6px"><span class="legend" id="formLegend"></span><span class="sp"></span><button class="btn sec sm" id="fZoomOut">−</button><button class="btn sec sm" id="fZoomIn">+</button><button class="btn sec sm" id="fZoomReset">ملاءمة</button></div>
-          <div class="mapwrap" id="fmapwrap" style="max-height:60vh"><div class="mapinner" id="fmapinner"><img id="fmapimg" alt="" draggable="false"><div id="fmarkers"></div></div></div>
+          <div class="mapwrap" id="fmapwrap" style="max-height:60vh"><div class="mapinner" id="fmapinner"><img id="fmapimg" alt="" draggable="false"><div id="fmarkers"></div><div id="fspot" class="spot hidden"></div></div></div>
           <div class="count"><span id="formMapCount"></span> — اضغط قطعة متاحة لاختيارها مباشرة.</div>
         </div>
         <div class="grid" style="margin-top:8px">
@@ -1193,6 +1194,10 @@ function renderFormMap(){
   $('fmarkers').innerHTML=MASTER.filter(u=>u.district===d&&u.x!=null).map(u=>{const s=unitStatus(u.id);n[s]++;const c=s==='available'?AV:s==='pending'?PD:BK;
     return `<div class="mk ${s}${u.id===sel?' hit':''}" data-id="${u.id}" title="${u.id} · ${STATUS_AR[s]}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
   $('formMapCount').textContent=`متاحة ${n.available} · محجوزة ${n.approved} · مبدئي ${n.pending}`;
+  const sp=$('fspot');
+  if(selectedUnit&&selectedUnit.district===d&&selectedUnit.x!=null){sp.classList.remove('hidden');
+    sp.style.background=`radial-gradient(circle at ${selectedUnit.x}% ${selectedUnit.y}%, transparent 0, transparent calc(var(--mk)*2.6), rgba(0,0,0,.62) calc(var(--mk)*3.4))`;}
+  else sp.classList.add('hidden');
   $('fmarkers').querySelectorAll('.mk').forEach(m=>m.onclick=e=>{e.stopPropagation();const id=m.dataset.id;if(unitStatus(id)==='available')selectUnit(id);else showUnit(id)});
 }
 function applyFZoom(){$('fmapinner').style.width=(fZoom*100)+'%'}
