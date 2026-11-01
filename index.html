@@ -1016,7 +1016,7 @@ function selectUnit(id,keepFocus){selectedUnit=MASTER_BY_ID[id];$('fUnit').value
   checkSelectedUnit();updateSubmit();renderFormMap();
   const hit=$('fmarkers').querySelector('.mk.hit'),w=$('fmapwrap');
   if(hit){const hx=hit.offsetLeft,hy=hit.offsetTop;if(hx<w.scrollLeft||hx>w.scrollLeft+w.clientWidth)w.scrollLeft=hx-w.clientWidth/2;if(hy<w.scrollTop||hy>w.scrollTop+w.clientHeight)w.scrollTop=hy-w.clientHeight/2}
-  if(keepFocus==='map'){$('unitDetails').scrollIntoView({block:'end',behavior:'smooth'})}
+  if(keepFocus==='map'){setTimeout(()=>{const r=$('unitDetails').getBoundingClientRect();const top=window.scrollY+r.bottom-window.innerHeight+24;if(top>window.scrollY)animateScroll(top)},60)}
   else if(!keepFocus)$('fNatId').focus()}
 function clearUnit(keepText){selectedUnit=null;if(!keepText)$('fUnit').value='';['aUnitId','aDistrict','aBlock','aModel','aRooms','aArea','aPrice'].forEach(i=>$(i).value='');$('unitBanner').innerHTML='';$('unitErr').textContent='';$('compErr').textContent='';updateSubmit();if(!$('formMapBox').classList.contains('hidden'))renderFormMap()}
 function checkSelectedUnit(){
@@ -1204,6 +1204,8 @@ function renderFormMap(){
   else sp.classList.add('hidden');
   $('fmarkers').querySelectorAll('.mk').forEach(m=>m.onclick=e=>{e.stopPropagation();const id=m.dataset.id;if(unitStatus(id)==='available')selectUnit(id,'map');else showUnit(id)});
 }
+function animateScroll(to){const from=window.scrollY,dist=to-from,t0=performance.now(),dur=300;let last=from;
+  (function step(){const k=Math.min(1,(performance.now()-t0)/dur),e=1-Math.pow(1-k,3);last=from+dist*e;window.scrollTo(0,last);if(k<1)setTimeout(step,16)})()}
 function applyFZoom(){$('fmapinner').style.width=(fZoom*100)+'%'}
 $('fZoomIn').onclick=()=>{fZoom=Math.min(4,fZoom*1.4);applyFZoom()};$('fZoomOut').onclick=()=>{fZoom=Math.max(1,fZoom/1.4);applyFZoom()};$('fZoomReset').onclick=()=>{fZoom=1;applyFZoom()};
 $('fmapwrap').addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();fZoom=Math.min(4,Math.max(1,fZoom*(e.deltaY<0?1.15:1/1.15)));applyFZoom()},{passive:false});
