@@ -25,6 +25,11 @@
             ".write": "auth != null && auth.token.email_verified == true && $k == auth.token.email.toLowerCase().replace('.', ',') && root.child('jabeenBookings/users/' + $k + '/role').exists() && newData.isString() && newData.val().length < 80"
           }
         }
+      },
+      "companies": {
+        "$id": {
+          ".write": "!data.exists() && newData.isString() && newData.val().length > 1 && newData.val().length < 100 && auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists()"
+        }
       }
     },
     "$other": {

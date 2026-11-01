@@ -237,7 +237,7 @@ tr:hover td{background:var(--hover)}
         <div class="grid">
           <div class="f"><label>رقم الهوية الوطنية <span class="req">*</span></label><input id="fNatId" inputmode="numeric" maxlength="10" placeholder="10 أرقام تبدأ بـ 1 أو 2" autocomplete="off"><div class="err" id="natErr"></div></div>
           <div class="f"><label>اسم العميل <span class="req">*</span></label><input id="fName" placeholder="الاسم الكامل كما في الهوية" autocomplete="off"></div>
-          <div class="f"><label>الشركة <span class="req">*</span></label><select id="fCompany"><option value="">— اختر الشركة —</option></select><div class="err" id="compErr"></div></div>
+          <div class="f"><label>الشركة <span class="req">*</span></label><input id="fCompany" list="companyList" placeholder="اكتب اسم الشركة أو اختر من المقترحات" autocomplete="off"><datalist id="companyList"></datalist><div class="err" id="compErr"></div></div>
           <div class="f"><label>الرقم الوظيفي</label><input id="fEmp" inputmode="numeric" autocomplete="off"></div>
           <div class="f"><label>رقم الجوال</label><input id="fPhone" inputmode="tel" maxlength="10" placeholder="05xxxxxxxx" autocomplete="off"><div class="err" id="phoneErr"></div></div>
           <div class="f"><label>طريقة الدفع <span class="req">*</span></label><select id="fPay"><option value="">— اختر —</option></select></div>
@@ -877,11 +877,15 @@ const UNALLOC='غير مخصصة';
 const BASE_COMPANIES = [...new Set(MASTER.map(u=>u.company))].filter(c=>c!==UNALLOC);
 let COMPANIES = [...BASE_COMPANIES];
 const EXTRA_COLORS=['#8e44ad','#e67e22','#16a085','#c0392b','#2c3e50','#d35400','#7f8c8d'];
-function extraCompanies(){return (config.lists&&config.lists.companies)||[]}
+let addedCompanies={};
+const normCo=s=>String(s||'').trim().replace(/\s+/g,' ');
+function extraCompanies(){const a=[...((config.lists&&config.lists.companies)||[]),...Object.values(addedCompanies||{})].map(normCo).filter(Boolean);return [...new Set(a)].filter(c=>c!==UNALLOC)}
+function canonCompany(v){const n=normCo(v);if(!n)return '';const k=n.replace(/\s/g,'').toLowerCase();return COMPANIES.find(c=>c.replace(/\s/g,'').toLowerCase()===k)||n}
+function fillCompanyList(){$('companyList').innerHTML=COMPANIES.map(c=>`<option value="${esc(c)}"></option>`).join('')}
 function refreshCompanies(){
   COMPANIES=[...BASE_COMPANIES,...extraCompanies().filter(c=>!BASE_COMPANIES.includes(c))];
   extraCompanies().forEach((c,i)=>{if(!COMPANY_COLOR[c])COMPANY_COLOR[c]=EXTRA_COLORS[i%EXTRA_COLORS.length]});
-  [['fCompany','— اختر الشركة —'],['bCompany','كل الشركات']].forEach(([id,f])=>{const el=$(id);const v=el.value;fillSelect(el,COMPANIES,f);el.value=v});
+  fillCompanyList();[['bCompany','كل الشركات']].forEach(([id,f])=>{const el=$(id);const v=el.value;fillSelect(el,COMPANIES,f);el.value=v});
   const u=$('uCompany');const uv=u.value;fillSelect(u,[...COMPANIES,UNALLOC],'كل الشركات');u.value=uv;
   if(typeof initMap==='function'&&mapDistrict)initMap();
 }
@@ -1014,6 +1018,7 @@ let started=false;
 function startData(){
   if(started)return;started=true;
   ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();refreshCompanies();fillAdminLists();renderAll()},showDbError);
+  ROOT.child('companies').on('value',s=>{addedCompanies=s.val()||{};refreshCompanies();fillAdminLists()});
   if(session.role==='admin')ROOT.child('users').on('value',s=>{users=s.val()||{};renderUsers()},showDbError);
   ROOT.child('bookings').on('value',s=>{bookings=s.val()||{};renderAll()},showDbError);
   ROOT.child('idx/unit').on('value',s=>{idxUnit=s.val()||{};renderAll()});
@@ -1040,7 +1045,7 @@ function renderStats(){
 function fillSelect(sel,vals,first){sel.innerHTML=(first?`<option value="">${first}</option>`:'')+vals.map(v=>`<option>${esc(v)}</option>`).join('')}
 const DIST_IN_MASTER=Object.values(DISTRICTS).filter(d=>MASTER.some(u=>u.district===d));
 fillSelect($('fDistrict'),DIST_IN_MASTER,'— اختر الحي —');fillSelect($('uDistrict'),DIST_IN_MASTER,'كل الأحياء');
-fillSelect($('fCompany'),COMPANIES,'— اختر الشركة —');fillSelect($('bCompany'),COMPANIES,'كل الشركات');fillSelect($('uCompany'),[...COMPANIES,UNALLOC],'كل الشركات');fillSelect($('uModel'),MODELS,'كل النماذج');
+fillCompanyList();fillSelect($('bCompany'),COMPANIES,'كل الشركات');fillSelect($('uCompany'),[...COMPANIES,UNALLOC],'كل الشركات');fillSelect($('uModel'),MODELS,'كل النماذج');
 function fillPay(){const cur=$('fPay').value;fillSelect($('fPay'),payMethods(),'— اختر —');$('fPay').value=cur}
 $('fDate').value=today();$('fDate').max=today();
 
@@ -1051,8 +1056,8 @@ function availableUnits(){
     .filter(u=>!q||String(parseInt(u.plot,10)).startsWith(String(parseInt(q,10)))).sort((a,b)=>a.id.localeCompare(b.id));
 }
 $('fDistrict').onchange=()=>{clearUnit();const ready=!!$('fDistrict').value;$('fUnit').disabled=!ready;$('fUnit').value='';renderFormMap();if(ready&&!isPhone()){$('fUnit').focus();openList()}};
-$('fCompany').onchange=()=>{checkCompany();updateSubmit()};
-function checkCompany(){const c=$('fCompany').value;$('compErr').textContent=(selectedUnit&&c&&selectedUnit.company!==UNALLOC&&selectedUnit.company!==c)?`⛔ الوحدة ${selectedUnit.id} مخصصة لشركة ${selectedUnit.company}`:''}
+$('fCompany').oninput=$('fCompany').onchange=()=>{checkCompany();updateSubmit()};
+function checkCompany(){const c=canonCompany($('fCompany').value);$('compErr').textContent=(selectedUnit&&c&&selectedUnit.company!==UNALLOC&&selectedUnit.company!==c)?`⛔ الوحدة ${selectedUnit.id} مخصصة لشركة ${selectedUnit.company}`:''}
 $('fUnit').addEventListener('input',()=>{$('fUnit').value=sanitizeDigits($('fUnit').value).slice(0,3);const q=$('fUnit').value;
   if(selectedUnit&&parseInt(q||'0',10)!==parseInt(selectedUnit.plot,10))clearUnit(true);
   if(q){const id=(DISTRICT_CODE[$('fDistrict').value]||'')+'-'+q.padStart(3,'0');const u=MASTER_BY_ID[id];
@@ -1110,7 +1115,7 @@ function formProblems(){
   else if(!validNatId(nat))P.push(['fNatId',`رقم الهوية غير صحيح (${nat.length} من 10 أرقام، ويجب أن يبدأ بـ 1 أو 2)`]);
   else{const b=activeBookingForNat(nat);if(b)P.push(['fNatId',`رقم الهوية مسجل على حجز آخر: ${b.refNo||b.unitId}`])}
   if(!nm)P.push(['fName','اسم العميل مفقود']);else if(nm.length<3)P.push(['fName','اسم العميل قصير جداً']);
-  if(!$('fCompany').value)P.push(['fCompany','اختر الشركة']);else if($('compErr').textContent)P.push(['fCompany',$('compErr').textContent.replace('⛔ ','')]);
+  if(!normCo($('fCompany').value))P.push(['fCompany','اكتب اسم الشركة']);else if(normCo($('fCompany').value).length<2)P.push(['fCompany','اسم الشركة قصير جداً']);else if($('compErr').textContent)P.push(['fCompany',$('compErr').textContent.replace('⛔ ','')]);
   if(ph&&!/^05\d{8}$/.test(ph))P.push(['fPhone','رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05']);
   if(!$('fPay').value)P.push(['fPay','اختر طريقة الدفع']);
   if(!$('fDate').value)P.push(['fDate','تاريخ الحجز مفقود']);
@@ -1143,10 +1148,11 @@ $('submitBtn').onclick=async()=>{
   const rc=await ROOT.child('counters/booking').transaction(c=>(c||0)+1);
   const refNo='JB-'+(DISTRICT_CODE[u.district]||u.id.slice(0,2))+'-'+u.plot+'-'+String(rc.snapshot.val()).padStart(5,'0');
   const now=Date.now();
-  const booking={refNo,unitId:u.id,district:u.district,block:u.block,model:u.model,company:u.company===UNALLOC?$('fCompany').value:u.company,price:u.price,plot:u.plot,
+  const booking={refNo,unitId:u.id,district:u.district,block:u.block,model:u.model,company:u.company===UNALLOC?canonCompany($('fCompany').value):u.company,price:u.price,plot:u.plot,
     natId,name:$('fName').value.trim(),empNo:$('fEmp').value.trim(),phone:$('fPhone').value.trim(),payMethod:$('fPay').value,bookingDate:$('fDate').value,notes:$('fNotes').value.trim(),
     status:'pending',maker:session.name,makerRole:session.role,createdAt:now,source:'النظام'};
   await ROOT.child('bookings/'+bid).set(booking);
+  if(!COMPANIES.includes(booking.company)){try{await ROOT.child('companies').push(booking.company);log('إضافة شركة جديدة',u.id,bid,booking.company)}catch(e){}}
   log('إنشاء حجز مبدئي',u.id,bid,`${refNo} — ${booking.name}`);
   toast(`تم تسجيل الحجز ${refNo}`);resetForm();
   showModal(`<h3>تم تسجيل الحجز المبدئي</h3><div class="banner ok" style="font-size:26px;justify-content:center;letter-spacing:1px">${refNo}</div>
@@ -1340,7 +1346,7 @@ $('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=
   const comps=[...new Set($('listCompanies').value.split('\n').map(s=>s.trim()).filter(c=>c&&!BASE_COMPANIES.includes(c)&&c!==UNALLOC))];
   const removed=extraCompanies().filter(c=>!comps.includes(c)&&Object.values(bookings).some(b=>isActive(b)&&b.company===c));
   if(removed.length)return toast(`لا يمكن حذف شركة عليها حجوزات نشطة: ${removed.join('، ')}`,true);
-  await ROOT.child('config/lists').set({payMethods:pay,companies:comps,sheetWebApp:$('sheetUrl').value.trim()});log('تحديث القوائم','','',`شركات إضافية: ${comps.join('، ')||'لا شيء'}`);toast('تم حفظ القوائم')};
+  await ROOT.child('config/lists').set({payMethods:pay,companies:comps,sheetWebApp:$('sheetUrl').value.trim()});await ROOT.child('companies').remove();log('تحديث القوائم','','',`شركات إضافية: ${comps.join('، ')||'لا شيء'}`);toast('تم حفظ القوائم')};
 
 /* ===== Excel export ===== */
 function csv(name,head,rows){
