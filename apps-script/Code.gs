@@ -8,6 +8,12 @@ var FIREBASE = 'https://jabeen-bookings-default-rtdb.europe-west1.firebasedataba
 var STATUS_AR = { available: 'متاحة', pending: 'مبدئي', approved: 'معتمد', rejected: 'مرفوض', cancelled: 'ملغي' };
 var ROLE_AR = { maker: 'مُدخل', checker: 'مُراجع', admin: 'مدير' };
 
+/* جدول التخصيص الخاص بالمستخدم: ورقة لكل حي، العمود A رقم القطعة والعمود H الحالة (قائمة منسدلة) */
+var ALLOC_SHEET_ID = '1Jobrngw85gUFGG9YlnYW2_rpIikwzAtEluM5lQrM5gA';
+var ALLOC_TABS = { 'العزيزية': 'العزيزية', 'النخيل': 'النخيل' };
+var ALLOC_STATUS = { available: 'متاح', pending: 'قيد الحجز', approved: 'محجوز' };
+var ALLOC_COL = 8; // H
+
 function doPost(e) { return respond_(syncAll()); }
 function doGet(e)  { return respond_(syncAll()); }
 function respond_(r) { return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON); }
@@ -41,6 +47,12 @@ function syncAll() {
     // ---------- الحجوزات ----------
     var list = Object.keys(bookings).map(function (k) { var b = bookings[k]; b._id = k; return b; });
     list.sort(function (a, b) { return String(a.refNo || '').localeCompare(String(b.refNo || '')); });
+
+    // جدول التخصيص أولاً (الأسرع والأهم): حالة كل قطعة في العمود H
+    var active0 = {};
+    list.forEach(function (b) { if (b.status === 'pending' || b.status === 'approved') active0[b.unitId] = b; });
+    var allocChanged = -1;
+    try { allocChanged = syncAllocation_(master, active0); } catch (err) { console.error('allocation sheet: ' + err); }
     var bHead = ['كود الحجز', 'الوحدة', 'الحي', 'رقم القطعة', 'البلوك', 'النموذج', 'الشركة', 'السعر', 'اسم العميل', 'رقم الهوية', 'الرقم الوظيفي', 'الجوال', 'طريقة الدفع', 'تاريخ الحجز', 'الحالة', 'المُدخل', 'وقت الإدخال', 'المُراجع', 'وقت المراجعة', 'سبب الرفض/الإلغاء', 'ملاحظات', 'المصدر'];
     var bRows = list.map(function (b) {
       return [b.refNo || '', b.unitId || '', b.district || '', b.plot || '', b.block || '', b.model || '', b.company || '', b.price || '',
@@ -100,8 +112,47 @@ function syncAll() {
     ss.getSheets().forEach(function (sh) { if (ORDER.indexOf(sh.getName()) < 0 && sh.getLastRow() === 0) ss.deleteSheet(sh); });
     ss.setActiveSheet(ss.getSheetByName('الوحدات'));
 
-    return { ok: true, bookings: list.length, units: master.length, at: new Date().toISOString() };
+    return { ok: true, bookings: list.length, units: master.length, allocChanged: allocChanged, at: new Date().toISOString() };
   } finally { lock.releaseLock(); }
+}
+
+/** يحدّث العمود H في جدول التخصيص لكل قطعة حسب حالتها في الموقع. يعيد عدد الخلايا التي تغيّرت. */
+function syncAllocation_(master, active) {
+  var ss = SpreadsheetApp.openById(ALLOC_SHEET_ID);
+  var byKey = {};
+  master.forEach(function (u) { byKey[u.district + '|' + parseInt(u.plot, 10)] = u; });
+  var changed = 0;
+  Object.keys(ALLOC_TABS).forEach(function (district) {
+    var sh = ss.getSheetByName(ALLOC_TABS[district]);
+    if (!sh) return;
+    var last = sh.getLastRow();
+    if (last < 2) return;
+    var plots = sh.getRange(2, 1, last - 1, 1).getValues();
+    var cur = sh.getRange(2, ALLOC_COL, last - 1, 1).getValues();
+    var out = cur.map(function (r, i) {
+      var p = parseInt(plots[i][0], 10);
+      var u = p ? byKey[district + '|' + p] : null;
+      if (!u) return [r[0]];
+      var b = active[u.id];
+      return [b ? ALLOC_STATUS[b.status] : ALLOC_STATUS.available];
+    });
+    var diff = out.filter(function (r, i) { return r[0] !== cur[i][0]; }).length;
+    if (diff) {
+      // تأكد أن القائمة المنسدلة تقبل القيم الثلاث قبل الكتابة
+      var rng = sh.getRange(2, ALLOC_COL, out.length, 1);
+      rng.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['متاح', 'قيد الحجز', 'محجوز'], true).setAllowInvalid(false).build());
+      rng.setValues(out);
+      changed += diff;
+    }
+    // تنسيق شرطي أصفر لـ "قيد الحجز" إن لم يكن موجوداً
+    var rules = sh.getConditionalFormatRules();
+    var has = rules.some(function (r) { var c = r.getBooleanCondition(); return c && c.getCriteriaValues().indexOf('قيد الحجز') >= 0; });
+    if (!has) {
+      rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('قيد الحجز').setBackground('#ffe59a').setFontColor('#6b4e00').setRanges([sh.getRange('H2:H')]).build());
+      sh.setConditionalFormatRules(rules);
+    }
+  });
+  return changed;
 }
 
 function writeSheet_(ss, name, head, rows) {
