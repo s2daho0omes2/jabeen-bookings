@@ -106,6 +106,16 @@ tr:hover td{background:var(--hover)}
 .st.approved{background:#dbe9ff;color:#1b4b9a}
 :root[data-theme="dark"] .st.approved{background:#1c2c45;color:#9ec1ff}
 .st.rejected,.st.cancelled{background:var(--red-bg);color:var(--red)}
+.st.pledged{background:#e3f6ea;color:#0f6b3a;border:1px solid #1e8e4e}
+.st.sent{background:var(--amber-bg);color:var(--amber);border:1px dashed var(--amber)}
+.mk.pl::after{content:'✓';position:absolute;top:-30%;right:-30%;width:58%;height:58%;border-radius:50%;background:#0f6b3a;color:#fff;border:1.5px solid #fff;font-size:62%;display:flex;align-items:center;justify-content:center;text-shadow:none}
+.switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-weight:700}
+.switch input{appearance:none;width:46px;height:26px;border-radius:13px;background:#c9c9c9;position:relative;transition:.2s;cursor:pointer;margin:0}
+.switch input::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
+.switch input:checked{background:var(--green)}
+.switch input:checked::after{left:23px}
+.code-in{font-family:monospace;font-size:26px;letter-spacing:8px;text-align:center;direction:ltr}
+.pledge-box{white-space:pre-wrap;line-height:1.9;background:var(--hover);border:1px solid var(--line);border-radius:12px;padding:14px;font-size:14px;max-height:260px;overflow:auto}
 .mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}
 .muted{color:var(--muted)}
 .count{color:var(--muted);font-size:13px;margin:8px 2px}
@@ -247,6 +257,7 @@ tr:hover td{background:var(--hover)}
           <div class="f"><label>الشركة <span class="req">*</span></label><input id="fCompany" list="companyList" placeholder="اكتب اسم الشركة أو اختر من المقترحات" autocomplete="off"><datalist id="companyList"></datalist><div class="err" id="compErr"></div></div>
           <div class="f"><label>الرقم الوظيفي</label><input id="fEmp" inputmode="numeric" autocomplete="off"></div>
           <div class="f"><label>رقم الجوال</label><input id="fPhone" inputmode="tel" maxlength="10" placeholder="05xxxxxxxx" autocomplete="off"><div class="err" id="phoneErr"></div></div>
+          <div class="f"><label>البريد الإلكتروني للعميل <span class="req" id="emailReq" style="display:none">*</span></label><input id="fEmail" type="email" dir="ltr" placeholder="name@example.com" autocomplete="off"><div class="err" id="emailErr"></div><div class="muted" id="emailHint" style="font-size:12px;margin-top:4px;display:none">يُرسل إليه الإقرار والتعهد ورمز التحقق. راجع صحته مع العميل.</div></div>
           <div class="f"><label>طريقة الدفع <span class="req">*</span></label><select id="fPay"><option value="">— اختر —</option></select></div>
           <div class="f"><label>تاريخ الحجز <span class="req">*</span></label><input id="fDate" type="date"></div>
           <div class="f" style="grid-column:1/-1"><label>ملاحظات</label><textarea id="fNotes" rows="2"></textarea></div>
@@ -273,7 +284,7 @@ tr:hover td{background:var(--hover)}
         </div>
         <div class="count" id="bCount"></div>
         <div class="tblwrap"><table><thead><tr>
-          <th>#</th><th>كود الحجز</th><th>الوحدة</th><th>الحي</th><th>بلوك</th><th>نموذج</th><th>الشركة</th><th>العميل</th><th>الهوية</th><th>الجوال</th><th>الدفع</th><th>تاريخ الحجز</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th></th>
+          <th>#</th><th>كود الحجز</th><th>الوحدة</th><th>الحي</th><th>بلوك</th><th>نموذج</th><th>الشركة</th><th>العميل</th><th>الهوية</th><th>الجوال</th><th>الدفع</th><th>تاريخ الحجز</th><th>الحالة</th><th>التعهد</th><th>المُدخل</th><th>المُراجع</th><th></th>
         </tr></thead><tbody id="bBody"></tbody></table></div>
       </div>
     </section>
@@ -374,10 +385,17 @@ tr:hover td{background:var(--hover)}
         <div class="hint">كل قيمة في سطر. تُستخدم في نموذج الحجز بدل الكتابة الحرة.</div>
         <div class="grid">
           <div class="f"><label>طرق الدفع</label><textarea id="listPay" rows="6"></textarea></div>
-          <div class="f" style="grid-column:1/-1"><label>رابط مزامنة جدول Google (Apps Script Web App)</label><input id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" dir="ltr"><div class="muted" style="font-size:12px;margin-top:4px">بعد كل حجز أو اعتماد أو رفض يُستدعى هذا الرابط فيُحدَّث جدول Google فوراً.</div></div>
+          <div class="f" style="grid-column:1/-1"><label>رابط خدمة Apps Script (مزامنة الجداول + إرسال التعهد)</label><input id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" dir="ltr"><div class="muted" style="font-size:12px;margin-top:4px">بعد كل حجز أو اعتماد أو رفض يُستدعى هذا الرابط فيُحدَّث جدول Google فوراً.</div></div>
           <div class="f"><label>شركات إضافية</label><textarea id="listCompanies" rows="6" placeholder="اسم الشركة&#10;شركة أخرى"></textarea><div class="muted" style="font-size:12px;margin-top:4px">الشركات الأساسية (ياسرف، مرافق، الفارابي) من الجدول الرئيسي ولا تُحذف. الشركات هنا تُضاف لقوائم الاختيار وتحجز الوحدات غير المخصصة.</div></div>
         </div>
         <div class="actions"><button class="btn" id="saveLists">حفظ القوائم</button></div>
+      </div>
+      <div class="card">
+        <h2>الإقرار والتعهد الإلكتروني</h2>
+        <div class="hint">عند التفعيل يصبح بريد العميل إلزامياً في الحجز، ويظهر زر «التعهد» على كل حجز نشط: يرسل النظام للعميل نص التعهد ورمز تحقق صالحاً 5 دقائق لا يراه الموظف، ويؤكد الموظف الموافقة بإدخال الرمز. أي تعديل على نص التعهد ينشئ إصداراً جديداً ويُبطل الرموز المرسلة.</div>
+        <label class="switch" style="margin:6px 0 14px"><input type="checkbox" id="plEnabled"><span>تفعيل طلب التعهد</span></label>
+        <div class="f"><label>نص الإقرار والتعهد <span class="muted" id="plVer"></span></label><textarea id="plText" rows="12" style="line-height:1.8"></textarea></div>
+        <div class="actions"><button class="btn" id="savePledge">حفظ إعدادات التعهد</button><span class="muted" style="font-size:13px">يحتاج رابط خدمة Apps Script أعلاه، ويجب أن يكون البريد المرسل منه مفعّلاً فيه.</span></div>
       </div>
       <div class="card">
         <h2>سجل الحركات</h2>
@@ -453,6 +471,49 @@ const payMethods = ()=> (config.lists && config.lists.payMethods && config.lists
 async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('jabeen:'+s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',3200)}
 function isActive(b){return b && (b.status==='pending'||b.status==='approved')}
+/* ===== الإقرار والتعهد ===== */
+let pledges={};
+const DEFAULT_PLEDGE=`أقرّ أنا الموقّع أدناه، العميل المذكور في بيانات الحجز، بأنني اطلعت على بيانات الوحدة السكنية المحجوزة باسمي في مشروع جبين السكني بمدينة ينبع الصناعية، وأتعهد بما يلي:
+١. صحة جميع البيانات الشخصية التي قدمتها لموظف الحجز، وأتحمل المسؤولية عن أي خطأ فيها.
+٢. أن الحجز مبدئي ولا يُعد عقد بيع، ويخضع لاستكمال الإجراءات والمستندات المطلوبة خلال المدة التي تحددها إدارة المشروع.
+٣. الالتزام بالسعر وطريقة الدفع الموضحة في بيانات الحجز، وبالشروط والأحكام المعتمدة للمشروع.
+٤. عدم حجز أكثر من وحدة واحدة باسمي، وإدراكي أن ثبوت ذلك يُلغي الحجز.
+٥. الموافقة على معالجة بياناتي لغرض إتمام الحجز والتواصل معي بشأنه.
+وبمشاركتي رمز التحقق المرسل إلى بريدي الإلكتروني مع موظف الحجز، أؤكد اطلاعي على هذا الإقرار والتعهد وموافقتي عليه.`;
+const pledgeOn=()=>!!(config.pledge&&config.pledge.enabled);
+const pledgeOf=bid=>pledges[bid]||null;
+const isPledged=bid=>{const p=pledgeOf(bid);return !!(p&&p.state==='confirmed')};
+function pledgeBadge(bid,b){const p=pledgeOf(bid);
+  if(p&&p.state==='confirmed')return `<span class="st pledged" title="تم تأكيد الإقرار والتعهد ${fmtTime(p.confirmedAt)}">متعهّد ✓</span>`;
+  if(!isActive(b))return '';
+  if(p&&p.state==='sent'&&p.expiresAt>Date.now())return `<span class="st sent">بانتظار الرمز</span>`;
+  return pledgeOn()?'<span class="muted" style="font-size:12px">لم يُرسل</span>':''}
+function unitStatusLabel(uid){const b=activeBookingForUnit(uid);if(!b)return STATUS_AR.available;const bid=idxUnit[uid]||Object.keys(bookings).find(k=>bookings[k]===b);return (b.status==='approved'&&isPledged(bid))?'محجوزة ومتعهّدة':STATUS_AR[b.status]}
+function bidOfUnit(uid){const b=activeBookingForUnit(uid);if(!b)return null;return idxUnit[uid]&&bookings[idxUnit[uid]]===b?idxUnit[uid]:Object.keys(bookings).find(k=>bookings[k]===b)||null}
+async function pledgeApi(payload){const url=config.lists&&config.lists.sheetWebApp;if(!url)throw new Error('رابط خدمة Apps Script غير مضبوط في الإعدادات');
+  const idToken=await auth.currentUser.getIdToken();
+  const r=await fetch(url,{method:'POST',body:JSON.stringify({...payload,idToken})});const j=await r.json();if(!j.ok)throw new Error(j.error||'فشل الطلب');return j}
+function pledgeModal(bid){const b=bookings[bid];if(!b)return;const p=pledgeOf(bid);const conf=p&&p.state==='confirmed';
+  const sent=p&&p.state==='sent'&&p.expiresAt>Date.now();
+  let h=`<h3>الإقرار والتعهد — حجز ${esc(b.refNo||'')}</h3><div class="kv">
+    <div>العميل</div><div>${esc(b.name)}</div><div>الوحدة</div><div><b>${esc(b.unitId)}</b> · ${esc(b.district)} · بلوك ${esc(b.block)} · ${esc(b.model)}</div>
+    <div>بريد العميل</div><div dir="ltr" style="text-align:right"><span class="mono" id="plEmailShow">${esc(b.email||'—')}</span> ${conf?'':`<button class="btn sec sm" id="plEditEmail">تعديل</button>`}</div>
+    <div>الحالة</div><div id="plState">${conf?`<span class="st pledged">تم تأكيد الإقرار والتعهد</span> · ${fmtTime(p.confirmedAt)} · بواسطة ${esc(p.by||'')} · الإصدار ${p.version}`:sent?`<span class="st sent">أُرسل الرمز</span> · صالح حتى ${fmtTime(p.expiresAt)} · أُرسل ${fmtTime(p.sentAt)}`:'لم يُرسل بعد'}</div></div>`;
+  if(conf)h+=`<div class="pledge-box" style="margin-top:10px">${esc(p.text||'')}</div><div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;
+  else h+=`<div class="hint" style="margin-top:10px">راجع مع العميل صحة البريد وبيانات الوحدة، ثم أرسل التعهد. يصل العميل نص التعهد ورمز تحقق صالحاً 5 دقائق ولا يظهر لك. إذا وافق العميل يعطيك الرمز فتدخله هنا.</div>
+    <div class="actions"><button class="btn" id="plSend">${sent?'إعادة إرسال التعهد والرمز':'إرسال التعهد ورمز التحقق للعميل'}</button></div>
+    <div class="f" style="margin-top:12px"><label>رمز التحقق من العميل</label><input id="plCode" class="code-in" inputmode="numeric" maxlength="6" placeholder="------" ${sent?'':'disabled'}></div>
+    <div class="actions"><button class="btn" id="plVerify" ${sent?'':'disabled'}>تأكيد الرمز وتسجيل الموافقة</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div><div class="err" id="plErr" style="margin-top:6px"></div>`;
+  showModal(h);if(conf)return;
+  const busy=(on)=>['plSend','plVerify','plEditEmail'].forEach(i=>{if($(i))$(i).disabled=on});
+  if($('plEditEmail'))$('plEditEmail').onclick=async()=>{const em=prompt('بريد العميل الجديد:',b.email||'');if(em===null)return;const e2=em.trim().toLowerCase();if(!validEmail(e2))return toast('بريد غير صحيح',true);
+    busy(true);try{await pledgeApi({action:'pledgeEmail',bid,email:e2});toast('تم تحديث البريد وإبطال أي رمز سابق');setTimeout(()=>pledgeModal(bid),400)}catch(e){$('plErr').textContent=e.message;busy(false)}};
+  $('plSend').onclick=async()=>{if(!validEmail(b.email||''))return $('plErr').textContent='أضف بريد العميل أولاً';busy(true);$('plErr').textContent='';
+    try{const r=await pledgeApi({action:'pledgeSend',bid});toast('أُرسل التعهد والرمز إلى بريد العميل');setTimeout(()=>{pledgeModal(bid);const c=$('plCode');if(c)c.focus()},600)}catch(e){$('plErr').textContent=e.message;busy(false)}};
+  $('plVerify').onclick=async()=>{const code=sanitizeDigits($('plCode').value);if(code.length!==6)return $('plErr').textContent='الرمز 6 أرقام';busy(true);$('plErr').textContent='';
+    try{await pledgeApi({action:'pledgeVerify',bid,code});toast('تم تأكيد الإقرار والتعهد');setTimeout(()=>pledgeModal(bid),600)}catch(e){$('plErr').textContent=e.message;busy(false)}};
+  $('plCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('plVerify').click()});
+}
 function isAlloc(b){return !!b && !b.natId && /تخصيص/.test(b.source||'')}
 function activeBookingForUnit(uid){const bid=idxUnit[uid];const b=bid&&bookings[bid];if(isActive(b))return b;return Object.values(bookings).find(x=>x.unitId===uid&&isActive(x))||null}
 function activeBookingForNat(n){const bid=idxNat[n];const b=bid&&bookings[bid];if(isActive(b))return b;return Object.values(bookings).find(x=>x.natId===n&&isActive(x))||null}
@@ -545,10 +606,11 @@ function enterApp(){
 let started=false;
 function startData(){
   if(started)return;started=true;
-  ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();refreshCompanies();fillAdminLists();renderAll()},showDbError);
+  ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();refreshCompanies();fillAdminLists();fillPledgeAdmin();applyPledgeForm();renderAll()},showDbError);
   ROOT.child('companies').on('value',s=>{addedCompanies=s.val()||{};refreshCompanies();fillAdminLists()});
   if(session.role==='admin')ROOT.child('users').on('value',s=>{users=s.val()||{};renderUsers()},showDbError);
   ROOT.child('bookings').on('value',s=>{bookings=s.val()||{};renderAll()},showDbError);
+  ROOT.child('pledges').on('value',s=>{pledges=s.val()||{};renderAll()});
   ROOT.child('idx/unit').on('value',s=>{idxUnit=s.val()||{};renderAll()});
   ROOT.child('idx/natId').on('value',s=>{idxNat=s.val()||{};renderAll()});
   ROOT.child('audit').limitToLast(300).on('value',s=>{audit=s.val()||{};renderAudit()});
@@ -643,6 +705,7 @@ $('fNatId').addEventListener('input',()=>{$('fNatId').value=sanitizeDigits($('fN
 $('fNatId').addEventListener('blur',()=>{const v=$('fNatId').value;if(v&&v.length<10){$('natErr').className='err';$('natErr').textContent=`رقم الهوية ناقص: ${v.length} من 10 أرقام`}});
 $('fPhone').addEventListener('input',()=>{$('fPhone').value=sanitizeDigits($('fPhone').value).slice(0,10);const v=$('fPhone').value;$('phoneErr').textContent=v&&!/^05\d{8}$/.test(v)?'رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05':'';updateSubmit()});
 ['fName','fPay','fDate','fEmp'].forEach(i=>$(i).addEventListener('input',updateSubmit));
+$('fEmail').addEventListener('input',()=>{const v=$('fEmail').value.trim();$('emailErr').textContent=v&&!validEmail(v)?'البريد الإلكتروني غير صحيح':'';updateSubmit()});
 function checkNat(){const v=$('fNatId').value;const el=$('natErr');el.className='err';
   if(!v){el.textContent='';return false}
   if(!validNatId(v)){el.textContent=v.length<10?'':'رقم الهوية غير صحيح: 10 أرقام تبدأ بـ 1 أو 2';return false}
@@ -660,6 +723,7 @@ function formProblems(){
   if(!nm)P.push(['fName','اسم العميل مفقود']);else if(nm.length<3)P.push(['fName','اسم العميل قصير جداً']);
   if(!normCo($('fCompany').value))P.push(['fCompany','اكتب اسم الشركة']);else if(normCo($('fCompany').value).length<2)P.push(['fCompany','اسم الشركة قصير جداً']);else if($('compErr').textContent)P.push(['fCompany',$('compErr').textContent.replace('⛔ ','')]);
   if(ph&&!/^05\d{8}$/.test(ph))P.push(['fPhone','رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05']);
+  const em=$('fEmail').value.trim();if(pledgeOn()&&!em)P.push(['fEmail','البريد الإلكتروني للعميل مطلوب لإرسال التعهد']);else if(em&&!validEmail(em))P.push(['fEmail','البريد الإلكتروني غير صحيح']);
   if(!$('fPay').value)P.push(['fPay','اختر طريقة الدفع']);
   if(!$('fDate').value)P.push(['fDate','تاريخ الحجز مفقود']);
   return P;
@@ -674,7 +738,7 @@ function showProblems(P){
 function updateSubmit(){$('submitBtn').disabled=!session;
   if($('formBanner').querySelector('.banner.red')&&formValid()){$('formBanner').innerHTML='';document.querySelectorAll('.f .bad').forEach(e=>e.classList.remove('bad'))}}
 $('resetBtn').onclick=resetForm;
-function resetForm(){clearUnit();['fNatId','fName','fEmp','fPhone','fNotes'].forEach(i=>$(i).value='');$('fPay').value='';$('fCompany').value='';$('fDate').value=today();$('natErr').textContent='';$('phoneErr').textContent='';$('formBanner').innerHTML='';updateSubmit()}
+function resetForm(){clearUnit();['fNatId','fName','fEmp','fPhone','fNotes','fEmail'].forEach(i=>$(i).value='');$('emailErr').textContent='';$('fPay').value='';$('fCompany').value='';$('fDate').value=today();$('natErr').textContent='';$('phoneErr').textContent='';$('formBanner').innerHTML='';updateSubmit()}
 
 $('submitBtn').onclick=async()=>{
   const P=formProblems();if(P.length){showProblems(P);return}
@@ -692,7 +756,7 @@ $('submitBtn').onclick=async()=>{
   const refNo='JB-'+(DISTRICT_CODE[u.district]||u.id.slice(0,2))+'-'+u.plot+'-'+String(rc.snapshot.val()).padStart(5,'0');
   const now=Date.now();
   const booking={refNo,unitId:u.id,district:u.district,block:u.block,model:u.model,company:u.company===UNALLOC?canonCompany($('fCompany').value):u.company,price:u.price,plot:u.plot,
-    natId,name:$('fName').value.trim(),empNo:$('fEmp').value.trim(),phone:$('fPhone').value.trim(),payMethod:$('fPay').value,bookingDate:$('fDate').value,notes:$('fNotes').value.trim(),
+    natId,name:$('fName').value.trim(),empNo:$('fEmp').value.trim(),phone:$('fPhone').value.trim(),email:$('fEmail').value.trim().toLowerCase(),payMethod:$('fPay').value,bookingDate:$('fDate').value,notes:$('fNotes').value.trim(),
     status:'pending',maker:session.name,makerEmail:session.email,makerRole:session.role,createdAt:now,source:'النظام'};
   await ROOT.child('bookings/'+bid).set(booking);
   if(!COMPANIES.includes(booking.company)){try{await ROOT.child('companies').push(booking.company);log('إضافة شركة جديدة',u.id,bid,booking.company)}catch(e){}}
@@ -710,7 +774,7 @@ function pingSheet(){ // يطلب من Apps Script إعادة مزامنة جد�
   const url=config.lists&&config.lists.sheetWebApp;if(!url)return;
   clearTimeout(sheetTimer);sheetTimer=setTimeout(()=>{fetch(url,{method:'POST',mode:'no-cors',body:'sync'}).catch(()=>{})},2000)}
 function log(action,unitId,bid,details){ROOT.child('audit').push({at:Date.now(),who:session?session.name:'',whoEmail:session?session.email:'',role:session?session.role:'',action,unitId:unitId||'',bid:bid||'',details:details||''});pingSheet()}
-function renderAudit(){const rows=Object.values(audit).sort((a,b)=>b.at-a.at);$('auditBody').innerHTML=rows.map(a=>`<tr><td>${fmtTime(a.at)}</td><td>${esc(a.who)}</td><td>${ROLE_AR[a.role]||''}</td><td>${esc(a.action)}</td><td class="mono">${esc(a.unitId)}</td><td>${esc(a.details)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">لا توجد حركات</td></tr>'}
+function renderAudit(){const rows=Object.values(audit).sort((a,b)=>b.at-a.at);$('auditBody').innerHTML=rows.map(a=>`<tr><td>${fmtTime(a.at)}</td><td>${esc(a.who)}</td><td>${ROLE_AR[a.role]||(a.role==='system'?'النظام':'')}</td><td>${esc(a.action)}</td><td class="mono">${esc(a.unitId)}</td><td>${esc(a.details)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">لا توجد حركات</td></tr>'}
 
 /* ===== Bookings table ===== */
 ['bSearch','bStatus','bCompany'].forEach(i=>$(i).addEventListener('input',renderBookings));
@@ -718,20 +782,22 @@ function filteredBookings(){const q=$('bSearch').value.trim().toLowerCase(),st=$
   return Object.entries(bookings).map(([bid,b])=>({bid,...b})).filter(b=>(!st||b.status===st)&&(!c||b.company===c)&&(!q||[b.refNo,b.name,b.natId,b.unitId,b.plot,b.empNo,b.phone,b.maker].some(v=>String(v||'').toLowerCase().includes(q)))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
 function renderBookings(){
   const rows=filteredBookings();$('bCount').textContent=`${rows.length} حجز`;
-  $('bBody').innerHTML=rows.map((b,i)=>`<tr><td>${i+1}</td><td class="mono"><b>${esc(b.refNo||'')}</b></td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.block)}</td><td>${esc(b.model)}</td><td>${esc(b.company)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td class="mono">${esc(b.phone)}</td><td>${esc(b.payMethod)}</td><td>${esc(b.bookingDate)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:220px">${esc(b.rejectReason)}</div>`:''}</td><td>${actionsFor(b)}</td></tr>`).join('')||'<tr><td colspan="16" class="muted">لا توجد حجوزات</td></tr>';
+  $('bBody').innerHTML=rows.map((b,i)=>`<tr><td>${i+1}</td><td class="mono"><b>${esc(b.refNo||'')}</b></td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.block)}</td><td>${esc(b.model)}</td><td>${esc(b.company)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td class="mono">${esc(b.phone)}</td><td>${esc(b.payMethod)}</td><td>${esc(b.bookingDate)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${pledgeBadge(b.bid,b)}</td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:220px">${esc(b.rejectReason)}</div>`:''}</td><td>${actionsFor(b)}</td></tr>`).join('')||'<tr><td colspan="17" class="muted">لا توجد حجوزات</td></tr>';
   $('bBody').querySelectorAll('[data-act]').forEach(btn=>btn.onclick=()=>doAction(btn.dataset.act,btn.dataset.bid));
 }
 function isMine(b){return b.makerEmail?b.makerEmail===session.email:b.maker===session.name}
 function actionsFor(b){const r=session.role;let h=`<button class="btn sec sm" data-act="view" data-bid="${b.bid}">عرض</button> `;
+  if(isActive(b)&&(pledgeOn()||pledgeOf(b.bid)))h+=`<button class="btn ${isPledged(b.bid)?'sec':''} sm" data-act="pledge" data-bid="${b.bid}">${isPledged(b.bid)?'التعهد ✓':'التعهد'}</button> `;
   if(b.status==='pending'&&(r==='checker'||r==='admin')){if(isMine(b)&&r!=='admin')h+=`<span class="muted" style="font-size:12px">لا يمكن اعتماد حجزك</span>`;else h+=`<button class="btn sm" data-act="approve" data-bid="${b.bid}">اعتماد</button> <button class="btn danger sm" data-act="reject" data-bid="${b.bid}">رفض</button>`}
   if(b.status==='pending'&&(r==='maker'||r==='checker')&&isMine(b))h+=`<button class="btn danger sm" data-act="cancel" data-bid="${b.bid}">إلغاء</button>`;
   if(b.status==='approved'&&r==='admin')h+=`<button class="btn danger sm" data-act="cancel" data-bid="${b.bid}">إلغاء الحجز</button>`;
   return h}
 async function doAction(act,bid){
   const b=bookings[bid];if(!b)return;
+  if(act==='pledge')return pledgeModal(bid);
   if(act==='view')return showModal(`<h3>حجز ${esc(b.refNo||'')} — الوحدة ${esc(b.unitId)}</h3><div class="kv">
     <div>الحالة</div><div><span class="st ${b.status}">${STATUS_AR[b.status]}</span></div><div>الحي / البلوك / النموذج</div><div>${esc(b.district)} · ${esc(b.block)} · ${esc(b.model)}</div><div>الشركة</div><div>${esc(b.company)}</div><div>السعر</div><div>${fmt(b.price)} ر.س</div>
-    <div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId)}</div><div>الرقم الوظيفي</div><div>${esc(b.empNo)}</div><div>الجوال</div><div class="mono">${esc(b.phone)}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>ملاحظات</div><div>${esc(b.notes)}</div>
+    <div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId)}</div><div>الرقم الوظيفي</div><div>${esc(b.empNo)}</div><div>الجوال</div><div class="mono">${esc(b.phone)}</div><div>البريد</div><div class="mono" dir="ltr" style="text-align:right">${esc(b.email||'—')}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>ملاحظات</div><div>${esc(b.notes)}</div><div>التعهد</div><div>${pledgeBadge(bid,b)||'—'}${isPledged(bid)?' · '+fmtTime(pledgeOf(bid).confirmedAt)+' · بواسطة '+esc(pledgeOf(bid).by||''):''}</div>
     <div>المُدخل</div><div>${esc(b.maker)} · ${fmtTime(b.createdAt)}</div><div>المُراجع</div><div>${esc(b.checker||'—')} ${b.checkedAt?'· '+fmtTime(b.checkedAt):''}</div>${b.rejectReason?`<div>السبب</div><div>${esc(b.rejectReason)}</div>`:''}<div>المصدر</div><div>${esc(b.source||'')}</div></div>
     <div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
   if(act==='approve'){
@@ -760,9 +826,9 @@ function filteredUnits(){const q=$('uSearch').value.trim().toUpperCase(),d=$('uD
   return MASTER.filter(u=>(!d||u.district===d)&&(!c||u.company===c)&&(!m||u.model===m)&&(!q||u.id.includes(q)||u.plot.includes(q)||u.block===q)&&(!st||unitStatus(u.id)===st))}
 function renderUnits(){const rows=filteredUnits();$('uCount').textContent=`${rows.length} وحدة`;
   $('uBody').innerHTML=rows.map(u=>{const st=unitStatus(u.id),b=st!=='available'?activeBookingForUnit(u.id):null;
-    return `<tr><td class="mono"><b>${u.id}</b></td><td>${esc(u.district)}</td><td>${u.plot}</td><td>${u.block}</td><td>${u.model}</td><td>${esc(u.company)}</td><td>${u.bed}</td><td>${u.bath}</td><td>${fmt(u.plotArea)}</td><td>${fmt(u.builtArea)}</td><td>${fmt(u.price)}</td><td><span class="st ${st}">${STATUS_AR[st]}</span></td><td>${b?esc(b.name)+(b.refNo?' <span class="mono muted">'+esc(b.refNo)+'</span>':''):''}</td></tr>`}).join('')}
+    return `<tr><td class="mono"><b>${u.id}</b></td><td>${esc(u.district)}</td><td>${u.plot}</td><td>${u.block}</td><td>${u.model}</td><td>${esc(u.company)}</td><td>${u.bed}</td><td>${u.bath}</td><td>${fmt(u.plotArea)}</td><td>${fmt(u.builtArea)}</td><td>${fmt(u.price)}</td><td><span class="st ${st}${st==='approved'&&isPledged(bidOfUnit(u.id))?' pledged':''}">${unitStatusLabel(u.id)}</span></td><td>${b?esc(b.name)+(b.refNo?' <span class="mono muted">'+esc(b.refNo)+'</span>':''):''}</td></tr>`}).join('')}
 $('uExport').onclick=()=>csv('الوحدات',['رقم الوحدة','الحي','رقم القطعة','البلوك','النموذج','الشركة','غرف','حمامات','مساحة الأرض','مساحة البناء','السعر','الحالة','العميل'],
-  filteredUnits().map(u=>{const st=unitStatus(u.id),b=activeBookingForUnit(u.id);return [u.id,u.district,u.plot,u.block,u.model,u.company,u.bed,u.bath,u.plotArea,u.builtArea,u.price,STATUS_AR[st],b?b.name:'']}));
+  filteredUnits().map(u=>{const st=unitStatus(u.id),b=activeBookingForUnit(u.id);return [u.id,u.district,u.plot,u.block,u.model,u.company,u.bed,u.bath,u.plotArea,u.builtArea,u.price,unitStatusLabel(u.id),b?b.name:'']}));
 
 /* ===== Map ===== */
 Object.assign(COMPANY_COLOR,{'ياسرف':'#e3b505','مرافق':'#2e9e5b','الفارابي':'#2f6fd6','غير مخصصة':'#8a8a8a'});
@@ -781,16 +847,18 @@ function renderMarkers(){
   if(!mapDistrict)return;const us=MASTER.filter(u=>u.district===mapDistrict&&u.x!=null);let st={available:0,pending:0,approved:0};
   const shown=us.filter(u=>(!mapFilter.company||u.company===mapFilter.company)&&(!mapFilter.status||unitStatus(u.id)===mapFilter.status));
   $('markers').innerHTML=us.map(u=>{const s=unitStatus(u.id);const vis=shown.includes(u);if(vis)st[s]++;const c=COMPANY_COLOR[u.company]||'#999';
-    return `<div class="mk ${s}${vis?'':' dim'}" data-id="${u.id}" title="${u.id} · بلوك ${u.block} · ${u.model} · ${esc(u.company)} · ${STATUS_AR[s]}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
+    const pl=s==='approved'&&isPledged(bidOfUnit(u.id));
+    return `<div class="mk ${s}${pl?' pl':''}${vis?'':' dim'}" data-id="${u.id}" title="${u.id} · بلوك ${u.block} · ${u.model} · ${esc(u.company)} · ${unitStatusLabel(u.id)}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
   $('markers').querySelectorAll('.mk').forEach(m=>m.onclick=e=>{e.stopPropagation();showUnit(m.dataset.id)});
   const fl=[mapFilter.company,mapFilter.status&&STATUS_AR[mapFilter.status]].filter(Boolean).join(' · ');
   $('mapCount').textContent=`${shown.length} فيلا في ${mapDistrict}${fl?' ('+fl+')':''}: متاحة ${st.available} · مبدئي ${st.pending} · معتمد ${st.approved}`;
 }
-function showUnit(id){const u=MASTER_BY_ID[id];const b=activeBookingForUnit(id);const st=b?b.status:'available';
-  let h=`<h3>الوحدة ${u.id} <span class="st ${st}">${STATUS_AR[st]}</span></h3><div class="kv">
+function showUnit(id){const u=MASTER_BY_ID[id];const b=activeBookingForUnit(id);const st=b?b.status:'available';const ubid=bidOfUnit(id);const pl=st==='approved'&&isPledged(ubid);
+  let h=`<h3>الوحدة ${u.id} <span class="st ${st}${pl?' pledged':''}">${unitStatusLabel(id)}</span></h3><div class="kv">
     <div>الحي / البلوك</div><div>${esc(u.district)} · بلوك ${u.block}</div><div>النموذج</div><div>${u.model} · ${u.bed} غرف · ${u.bath} حمامات</div><div>المساحة</div><div>أرض ${fmt(u.plotArea)} م² · بناء ${fmt(u.builtArea)} م²</div><div>السعر</div><div>${fmt(u.price)} ر.س</div><div>التخصيص</div><div>${esc(u.company)}</div>`;
-  if(b)h+=`<div>كود الحجز</div><div class="mono"><b>${esc(b.refNo||'')}</b></div><div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId||'—')}</div><div>الجوال</div><div class="mono">${esc(b.phone||'—')}</div><div>الشركة</div><div>${esc(b.company)}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>المُدخل</div><div>${esc(b.maker)} · ${fmtTime(b.createdAt)}</div><div>المُراجع</div><div>${esc(b.checker||'—')}</div>`;
+  if(b)h+=`<div>كود الحجز</div><div class="mono"><b>${esc(b.refNo||'')}</b></div><div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId||'—')}</div><div>الجوال</div><div class="mono">${esc(b.phone||'—')}</div><div>الشركة</div><div>${esc(b.company)}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>المُدخل</div><div>${esc(b.maker)} · ${fmtTime(b.createdAt)}</div><div>المُراجع</div><div>${esc(b.checker||'—')}</div><div>التعهد</div><div>${pledgeBadge(ubid,b)||'—'}${pl?' · '+fmtTime(pledgeOf(ubid).confirmedAt):''}</div>`;
   h+=`</div><div class="actions">`;
+  if(b&&isActive(b)&&(pledgeOn()||pledgeOf(ubid)))h+=`<button class="btn ${pl?'sec':''}" onclick="closeModal();pledgeModal('${ubid}')">${pl?'عرض التعهد':'التعهد'}</button>`;
   if(!b)h+=`<button class="btn" onclick="closeModal();bookFromMap('${u.id}')">حجز هذه الوحدة</button>`;
   h+=`<button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;showModal(h)}
 function bookFromMap(id){const u=MASTER_BY_ID[id];switchTab('new');resetForm();
@@ -815,7 +883,7 @@ function renderFormMap(){
   $('formLegend').innerHTML=`<span><i style="border-color:${AV};background:rgba(255,255,255,.85)"></i>متاحة</span><span><i style="border-color:${BK};background:${BK}"></i>محجوزة</span><span><i style="border-color:${PD};background:${PD};box-shadow:inset 0 0 0 3px #fff"></i>حجز مبدئي</span>`;
   const sel=selectedUnit&&selectedUnit.id;let n={available:0,pending:0,approved:0};
   $('fmarkers').innerHTML=MASTER.filter(u=>u.district===d&&u.x!=null).map(u=>{const s=unitStatus(u.id);n[s]++;const c=s==='available'?AV:s==='pending'?PD:BK;
-    return `<div class="mk ${s}${u.id===sel?' hit':''}" data-id="${u.id}" title="${u.id} · ${STATUS_AR[s]}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
+    return `<div class="mk ${s}${u.id===sel?' hit':''}${s==='approved'&&isPledged(bidOfUnit(u.id))?' pl':''}" data-id="${u.id}" title="${u.id} · ${unitStatusLabel(u.id)}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
   $('formMapCount').textContent=`متاحة ${n.available} · محجوزة ${n.approved} · مبدئي ${n.pending}`;
   const sp=$('fspot');
   if(selectedUnit&&selectedUnit.district===d&&selectedUnit.x!=null){sp.classList.remove('hidden');
@@ -870,6 +938,8 @@ async function fixIdx(){ // rebuild uniqueness index from active bookings (admin
 $('excExport').onclick=()=>csv('تقرير_التدقيق',['نوع الاستثناء','الوحدة','العميل','الهوية','الشركة','الحالة','المُدخل','المشكلة'],excRows);
 
 /* ===== Admin ===== */
+function fillPledgeAdmin(){if(!$('plText'))return;const pc=config.pledge||{};if(document.activeElement!==$('plText'))$('plText').value=pc.text||DEFAULT_PLEDGE;$('plEnabled').checked=!!pc.enabled;$('plVer').textContent=pc.version?`(الإصدار ${pc.version}${pc.updatedAt?' · '+fmtTime(pc.updatedAt):''})`:'(لم يُحفظ بعد)'}
+function applyPledgeForm(){const on=pledgeOn();$('emailReq').style.display=on?'':'none';$('emailHint').style.display=on?'':'none'}
 function fillAdminLists(){if($('listPay'))$('listPay').value=payMethods().join('\n');if($('listCompanies'))$('listCompanies').value=extraCompanies().join('\n');if($('sheetUrl'))$('sheetUrl').value=(config.lists&&config.lists.sheetWebApp)||''}
 function renderUsers(){
   const rows=Object.entries(users).filter(([k,u])=>u&&u.role).map(([k,u])=>({k,email:u.email||k.replace(/,/g,'.'),name:u.name||'',role:u.role}));
@@ -886,6 +956,10 @@ $('addUser').onclick=async()=>{const em=$('usrEmail').value.trim().toLowerCase()
   const k=emailKey(em);const old=users[k]||{};
   await ROOT.child('users/'+k).set({email:em,name:name||old.name||'',role,addedBy:session.email,addedAt:Date.now()});
   log(old.role?'تحديث مستخدم':'إضافة مستخدم','','',`${em} · ${ROLE_AR[role]}`);$('usrEmail').value='';$('usrName').value='';toast('تم الحفظ')};
+$('savePledge').onclick=async()=>{const text=$('plText').value.trim();if(text.length<20)return toast('نص التعهد قصير جداً',true);const old=config.pledge||{};
+  const version=(old.text||'')===text?(old.version||1):((old.version||0)+1);
+  await ROOT.child('config/pledge').set({enabled:$('plEnabled').checked,text,version,updatedAt:Date.now(),updatedBy:session.email});
+  log('إعدادات التعهد','','',`${$('plEnabled').checked?'مفعّل':'موقوف'} · الإصدار ${version}`);toast('تم حفظ إعدادات التعهد')};
 $('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!pay.length)return toast('أضف طريقة دفع واحدة على الأقل',true);
   const comps=[...new Set($('listCompanies').value.split('\n').map(s=>s.trim()).filter(c=>c&&!BASE_COMPANIES.includes(c)&&c!==UNALLOC))];
   const removed=extraCompanies().filter(c=>!comps.includes(c)&&Object.values(bookings).some(b=>isActive(b)&&b.company===c));

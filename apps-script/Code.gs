@@ -14,7 +14,25 @@ var ALLOC_TABS = { 'العزيزية': 'العزيزية', 'النخيل': 'ال
 var ALLOC_STATUS = { available: 'متاح', pending: 'قيد الحجز', approved: 'محجوز' };
 var ALLOC_COL = 8; // H
 
-function doPost(e) { return respond_(syncAll()); }
+/* الإقرار والتعهد الإلكتروني: الرموز تُخزَّن مشفّرة خارج jabeenBookings فلا يصل إليها أي موظف */
+var DB_ROOT = FIREBASE.replace(/\/jabeenBookings$/, '');
+var SECRETS = DB_ROOT + '/pledgeSecrets';
+var FB_API_KEY = 'AIzaSyBs6zMzOL4ggegfLYIPgSb_RDqYXNf1cuo';
+var SUPER_ADMIN = 's2.daho0ome.s2@gmail.com';
+var PLEDGE_TTL_MS = 5 * 60 * 1000;   // صلاحية الرمز
+var PLEDGE_RESEND_MS = 60 * 1000;    // أقل فاصل بين إرسالين
+var PLEDGE_MAX_ATTEMPTS = 5;
+var MAIL_NAME = 'حجوزات مشروع جبين';
+
+function doPost(e) {
+  var body = null;
+  try { body = JSON.parse((e && e.postData && e.postData.contents) || ''); } catch (err) { body = null; }
+  if (body && body.action) {
+    try { return respond_(pledgeRoute_(body)); }
+    catch (err) { return respond_({ ok: false, error: String(err.message || err) }); }
+  }
+  return respond_(syncAll());
+}
 function doGet(e)  { return respond_(syncAll()); }
 function respond_(r) { return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON); }
 
@@ -23,6 +41,146 @@ function setupTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'syncAll') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('syncAll').timeBased().everyMinutes(5).create();
   return syncAll();
+}
+
+/* ---------- Firebase REST بصلاحية المالك ---------- */
+function fbHeaders_() { return { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }; }
+function fbGet_(url) { var r = UrlFetchApp.fetch(url + '.json', { headers: fbHeaders_(), muteHttpExceptions: true }); if (r.getResponseCode() !== 200) throw new Error('DB read ' + r.getResponseCode()); var t = r.getContentText(); return t === 'null' ? null : JSON.parse(t); }
+function fbWrite_(url, obj, method) { var r = UrlFetchApp.fetch(url + '.json', { method: method || 'put', contentType: 'application/json', headers: fbHeaders_(), payload: JSON.stringify(obj), muteHttpExceptions: true }); if (r.getResponseCode() !== 200) throw new Error('DB write ' + r.getResponseCode()); }
+function fbDelete_(url) { var r = UrlFetchApp.fetch(url + '.json', { method: 'delete', headers: fbHeaders_(), muteHttpExceptions: true }); if (r.getResponseCode() !== 200) throw new Error('DB delete ' + r.getResponseCode()); }
+function fbPush_(url, obj) { var r = UrlFetchApp.fetch(url + '.json', { method: 'post', contentType: 'application/json', headers: fbHeaders_(), payload: JSON.stringify(obj), muteHttpExceptions: true }); if (r.getResponseCode() !== 200) throw new Error('DB push ' + r.getResponseCode()); }
+function emailKey_(e) { return String(e || '').toLowerCase().replace(/\./g, ','); }
+function sha256_(str) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, str, Utilities.Charset.UTF_8).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join(''); }
+function tsAr_(ms) { return ms ? Utilities.formatDate(new Date(ms), 'Asia/Riyadh', 'yyyy-MM-dd HH:mm') : ''; }
+function fmtNum_(n) { return n == null || n === '' ? '' : Number(n).toLocaleString('en-US'); }
+function escH_(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+/** يتحقق من موظف مسجَّل دخوله في الموقع عبر رمز Firebase، ويعيد {email,name,role} */
+function employee_(idToken) {
+  if (!idToken) throw new Error('يجب تسجيل الدخول');
+  var r = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + FB_API_KEY, { method: 'post', contentType: 'application/json', payload: JSON.stringify({ idToken: idToken }), muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw new Error('جلسة الدخول غير صالحة، أعد تسجيل الدخول');
+  var u = (JSON.parse(r.getContentText()).users || [])[0];
+  if (!u || !u.emailVerified) throw new Error('البريد غير موثّق');
+  var email = String(u.email).toLowerCase();
+  var rec = fbGet_(FIREBASE + '/users/' + emailKey_(email)) || {};
+  if (email === SUPER_ADMIN) rec.role = 'admin';
+  if (['maker', 'checker', 'admin'].indexOf(rec.role) < 0) throw new Error('هذا الحساب غير مصرح له');
+  return { email: email, name: rec.name || email, role: rec.role };
+}
+function audit_(emp, action, unitId, bid, details) {
+  try { fbPush_(FIREBASE + '/audit', { at: Date.now(), who: emp ? emp.name : 'النظام', whoEmail: emp ? emp.email : '', role: 'system', action: action, unitId: unitId || '', bid: bid || '', details: details || '' }); } catch (e) {}
+}
+
+/* ---------- مسارات التعهد ---------- */
+function pledgeRoute_(body) {
+  var emp = employee_(body.idToken);
+  var bid = String(body.bid || '').replace(/[^A-Za-z0-9_-]/g, '');
+  if (!bid) throw new Error('رقم الحجز مفقود');
+  var booking = fbGet_(FIREBASE + '/bookings/' + bid);
+  if (!booking) throw new Error('الحجز غير موجود');
+  if (booking.status !== 'pending' && booking.status !== 'approved') throw new Error('الحجز غير نشط');
+  var cfg = fbGet_(FIREBASE + '/config/pledge') || {};
+  var existing = fbGet_(FIREBASE + '/pledges/' + bid);
+  if (existing && existing.state === 'confirmed' && body.action !== 'pledgeStatus') throw new Error('تم تأكيد التعهد لهذا الحجز مسبقاً');
+  if (body.action === 'pledgeEmail') return pledgeEmail_(emp, bid, booking, body.email);
+  if (!cfg.enabled || !cfg.text) throw new Error('طلب التعهد غير مفعّل في الإعدادات');
+  if (body.action === 'pledgeSend') return pledgeSend_(emp, bid, booking, cfg, existing);
+  if (body.action === 'pledgeVerify') return pledgeVerify_(emp, bid, booking, cfg, body.code);
+  throw new Error('إجراء غير معروف');
+}
+
+function pledgeEmail_(emp, bid, booking, email) {
+  email = String(email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('البريد الإلكتروني غير صحيح');
+  if (emp.role !== 'admin' && String(booking.makerEmail || '').toLowerCase() !== emp.email) throw new Error('تعديل البريد متاح لمُدخل الحجز أو المدير فقط');
+  fbWrite_(FIREBASE + '/bookings/' + bid, { email: email }, 'patch');
+  try { fbDelete_(SECRETS + '/' + bid); } catch (e) {}
+  try { fbDelete_(FIREBASE + '/pledges/' + bid); } catch (e) {}
+  audit_(emp, 'تعديل بريد العميل', booking.unitId, bid, (booking.refNo || '') + ' — ' + email);
+  return { ok: true, email: email };
+}
+
+function pledgeSend_(emp, bid, booking, cfg, existing) {
+  var email = String(booking.email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('لا يوجد بريد إلكتروني صحيح للعميل');
+  var prev = fbGet_(SECRETS + '/' + bid);
+  if (prev && prev.sentAt && Date.now() - prev.sentAt < PLEDGE_RESEND_MS) throw new Error('انتظر دقيقة قبل إعادة الإرسال');
+  var code = String(Math.floor(100000 + Math.random() * 900000));
+  var salt = Utilities.getUuid();
+  var now = Date.now(), exp = now + PLEDGE_TTL_MS;
+  var version = Number(cfg.version || 1), textHash = sha256_(cfg.text);
+  fbWrite_(SECRETS + '/' + bid, { hash: sha256_(salt + '|' + code + '|' + bid + '|' + email + '|' + version + '|' + textHash + '|' + booking.unitId), salt: salt, email: email, version: version, textHash: textHash, unitId: booking.unitId, sentAt: now, expiresAt: exp, attempts: 0, used: false });
+  sendPledgeMail_(booking, cfg, email, code, exp);
+  fbWrite_(FIREBASE + '/pledges/' + bid, { state: 'sent', email: email, version: version, sentAt: now, expiresAt: exp, sentBy: emp.name, sentByEmail: emp.email, refNo: booking.refNo || '', unitId: booking.unitId });
+  audit_(emp, 'إرسال التعهد ورمز التحقق', booking.unitId, bid, (booking.refNo || '') + ' — ' + email);
+  return { ok: true, expiresAt: exp };
+}
+
+function pledgeVerify_(emp, bid, booking, cfg, code) {
+  code = String(code || '').replace(/\D/g, '');
+  var sec = fbGet_(SECRETS + '/' + bid);
+  if (!sec || sec.used) throw new Error('لا يوجد رمز فعّال لهذا الحجز، أرسل التعهد أولاً');
+  if (Date.now() > sec.expiresAt) throw new Error('انتهت صلاحية الرمز (5 دقائق)، أعد الإرسال');
+  if (sec.attempts >= PLEDGE_MAX_ATTEMPTS) throw new Error('تجاوزت عدد المحاولات، أعد إرسال التعهد');
+  var email = String(booking.email || '').toLowerCase(), version = Number(cfg.version || 1), textHash = sha256_(cfg.text);
+  if (sec.email !== email || sec.version !== version || sec.textHash !== textHash || sec.unitId !== booking.unitId) {
+    fbDelete_(SECRETS + '/' + bid);
+    throw new Error('تغيّرت بيانات الحجز أو نص التعهد بعد إرسال الرمز، يلزم إرسال جديد');
+  }
+  if (code.length !== 6 || sha256_(sec.salt + '|' + code + '|' + bid + '|' + email + '|' + version + '|' + textHash + '|' + booking.unitId) !== sec.hash) {
+    fbWrite_(SECRETS + '/' + bid, { attempts: (sec.attempts || 0) + 1 }, 'patch');
+    audit_(emp, 'رمز تعهد خاطئ', booking.unitId, bid, booking.refNo || '');
+    var left = PLEDGE_MAX_ATTEMPTS - (sec.attempts || 0) - 1;
+    throw new Error('الرمز غير صحيح' + (left > 0 ? ' (متبقٍ ' + left + ' محاولات)' : '، أعد إرسال التعهد'));
+  }
+  var now = Date.now();
+  fbWrite_(SECRETS + '/' + bid, { used: true, usedAt: now }, 'patch');
+  var rec = { state: 'confirmed', statement: 'تم تأكيد الإقرار والتعهد بواسطة الموظف بالرمز المرسل إلى بريد العميل',
+    email: email, name: booking.name || '', natId: booking.natId || '', refNo: booking.refNo || '', unitId: booking.unitId, district: booking.district || '', block: booking.block || '', model: booking.model || '', price: booking.price || '', company: booking.company || '',
+    version: version, textHash: textHash, text: cfg.text, sentAt: sec.sentAt, confirmedAt: now, by: emp.name, byEmail: emp.email, byRole: emp.role };
+  fbWrite_(FIREBASE + '/pledges/' + bid, rec);
+  audit_(emp, 'تأكيد الإقرار والتعهد', booking.unitId, bid, (booking.refNo || '') + ' — ' + email);
+  try { sendConfirmMail_(booking, cfg, email, now); } catch (e) { audit_(emp, 'تعذر إرسال رسالة التأكيد', booking.unitId, bid, String(e)); }
+  return { ok: true, confirmedAt: now };
+}
+
+/* ---------- الرسائل ---------- */
+function bookingTable_(b) {
+  var rows = [['كود الحجز', b.refNo], ['رقم الوحدة', b.unitId], ['الحي', b.district], ['رقم القطعة', b.plot], ['البلوك', b.block], ['النموذج', b.model], ['الشركة', b.company], ['السعر', fmtNum_(b.price) + ' ر.س'], ['اسم العميل', b.name], ['رقم الهوية', b.natId], ['تاريخ الحجز', b.bookingDate]];
+  return '<table dir="rtl" style="border-collapse:collapse;font-size:14px;width:100%;max-width:520px">' + rows.map(function (r) { return '<tr><td style="padding:6px 10px;border:1px solid #ddd;background:#f3f6f4;font-weight:bold;width:34%">' + escH_(r[0]) + '</td><td style="padding:6px 10px;border:1px solid #ddd">' + escH_(r[1]) + '</td></tr>'; }).join('') + '</table>';
+}
+function mailShell_(title, inner) {
+  return '<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;max-width:640px;margin:auto;color:#222;line-height:1.8"><div style="background:#1f4d3a;color:#fff;padding:14px 18px;border-radius:12px 12px 0 0;font-size:18px;font-weight:bold">' + escH_(title) + '</div><div style="border:1px solid #ddd;border-top:0;padding:18px;border-radius:0 0 12px 12px">' + inner + '<p style="color:#777;font-size:12px;margin-top:22px">رسالة آلية من نظام حجوزات مشروع جبين السكني — ينبع الصناعية.</p></div></div>';
+}
+function sendPledgeMail_(b, cfg, email, code, exp) {
+  var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
+    '<p>تم تسجيل حجز باسمك برقم <b>' + escH_(b.refNo) + '</b>. هذه بيانات الوحدة المحجوزة:</p>' + bookingTable_(b) +
+    '<h3 style="margin:22px 0 6px">نص الإقرار والتعهد (الإصدار ' + escH_(cfg.version || 1) + ')</h3>' +
+    '<div style="white-space:pre-wrap;background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:14px">' + escH_(cfg.text) + '</div>' +
+    '<h3 style="margin:22px 0 6px">رمز التحقق</h3>' +
+    '<div style="font-size:34px;letter-spacing:10px;font-weight:bold;text-align:center;direction:ltr;background:#eef6f1;border:2px dashed #1f4d3a;border-radius:12px;padding:12px">' + code + '</div>' +
+    '<p style="color:#b3261e;font-weight:bold">الرمز صالح حتى ' + tsAr_(exp) + ' (5 دقائق) ويُستخدم مرة واحدة.</p>' +
+    '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold">بمشاركتك هذا الرمز مع موظف الحجز، فإنك تؤكد اطلاعك على بيانات الحجز والتعهد وموافقتك عليهما، وتفوّض الموظف بتسجيل موافقتك.</p>' +
+    '<p>إذا لم توافق على ما ورد أعلاه، فلا تشارك الرمز مع أحد.</p>';
+  MailApp.sendEmail({ to: email, subject: 'الإقرار والتعهد ورمز التحقق — حجز ' + (b.refNo || ''), htmlBody: mailShell_('الإقرار والتعهد — مشروع جبين السكني', inner), name: MAIL_NAME });
+}
+function sendConfirmMail_(b, cfg, email, when) {
+  var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
+    '<p>تم تسجيل موافقتك على الإقرار والتعهد الخاص بالحجز رقم <b>' + escH_(b.refNo) + '</b> بتاريخ ' + tsAr_(when) + '.</p>' + bookingTable_(b) +
+    '<h3 style="margin:22px 0 6px">نسخة الإقرار والتعهد المؤكَّد (الإصدار ' + escH_(cfg.version || 1) + ')</h3>' +
+    '<div style="white-space:pre-wrap;background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:14px">' + escH_(cfg.text) + '</div>' +
+    '<p>احتفظ بهذه الرسالة كمرجع.</p>';
+  MailApp.sendEmail({ to: email, subject: 'تأكيد الإقرار والتعهد — حجز ' + (b.refNo || ''), htmlBody: mailShell_('تم تأكيد الإقرار والتعهد — مشروع جبين السكني', inner), name: MAIL_NAME });
+}
+
+/** اختبار من المحرر: يرسل رسالتي التعهد والتأكيد إلى بريد المالك لحجز تجريبي دون المساس بأي حجز حقيقي */
+function testPledgeMail() {
+  var cfg = fbGet_(FIREBASE + '/config/pledge') || { text: '(نص التعهد لم يُحفظ بعد في الإعدادات)', version: 0 };
+  var b = { refNo: 'JB-TEST-000-00000', unitId: 'AZ-000', district: 'العزيزية', plot: '000', block: '00', model: 'B1', company: 'اختبار', price: 1590000, name: 'عميل تجريبي', natId: '1000000000', bookingDate: '2026-11-03' };
+  sendPledgeMail_(b, cfg, SUPER_ADMIN, '123456', Date.now() + PLEDGE_TTL_MS);
+  sendConfirmMail_(b, cfg, SUPER_ADMIN, Date.now());
+  return 'sent to ' + SUPER_ADMIN;
 }
 
 function fetchJson_(url) {
@@ -39,6 +197,7 @@ function syncAll() {
   if (!lock.tryLock(20000)) return { ok: false, error: 'busy' };
   try {
     var bookings = fetchJson_(FIREBASE + '/bookings.json') || {};
+    var pledges = fetchJson_(FIREBASE + '/pledges.json') || {};
     var audit = fetchJson_(FIREBASE + '/audit.json') || {};
     var mo = fetchJson_(FIREBASE + '/master.json') || {};
     var master = Object.keys(mo).sort().map(function (k) { return mo[k]; });
@@ -53,11 +212,12 @@ function syncAll() {
     list.forEach(function (b) { if (b.status === 'pending' || b.status === 'approved') active0[b.unitId] = b; });
     var allocChanged = -1;
     try { allocChanged = syncAllocation_(master, active0); } catch (err) { console.error('allocation sheet: ' + err); }
-    var bHead = ['كود الحجز', 'الوحدة', 'الحي', 'رقم القطعة', 'البلوك', 'النموذج', 'الشركة', 'السعر', 'اسم العميل', 'رقم الهوية', 'الرقم الوظيفي', 'الجوال', 'طريقة الدفع', 'تاريخ الحجز', 'الحالة', 'المُدخل', 'وقت الإدخال', 'المُراجع', 'وقت المراجعة', 'سبب الرفض/الإلغاء', 'ملاحظات', 'المصدر'];
+    var bHead = ['كود الحجز', 'الوحدة', 'الحي', 'رقم القطعة', 'البلوك', 'النموذج', 'الشركة', 'السعر', 'اسم العميل', 'رقم الهوية', 'الرقم الوظيفي', 'الجوال', 'طريقة الدفع', 'تاريخ الحجز', 'الحالة', 'المُدخل', 'وقت الإدخال', 'المُراجع', 'وقت المراجعة', 'سبب الرفض/الإلغاء', 'ملاحظات', 'المصدر', 'البريد', 'التعهد', 'وقت التعهد'];
     var bRows = list.map(function (b) {
       return [b.refNo || '', b.unitId || '', b.district || '', b.plot || '', b.block || '', b.model || '', b.company || '', b.price || '',
         b.name || '', b.natId ? "'" + b.natId : '', b.empNo || '', b.phone ? "'" + b.phone : '', b.payMethod || '', b.bookingDate || '',
-        STATUS_AR[b.status] || b.status || '', b.maker || '', ts_(b.createdAt), b.checker || '', ts_(b.checkedAt), b.rejectReason || '', b.notes || '', b.source || ''];
+        STATUS_AR[b.status] || b.status || '', b.maker || '', ts_(b.createdAt), b.checker || '', ts_(b.checkedAt), b.rejectReason || '', b.notes || '', b.source || '',
+        b.email || '', (pledges[b._id] && pledges[b._id].state === 'confirmed') ? 'مؤكَّد' : '', (pledges[b._id] && pledges[b._id].confirmedAt) ? ts_(pledges[b._id].confirmedAt) : ''];
     });
     writeSheet_(ss, 'الحجوزات', bHead, bRows);
 
