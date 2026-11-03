@@ -23,6 +23,18 @@ var PLEDGE_TTL_MS = 5 * 60 * 1000;   // صلاحية الرمز
 var PLEDGE_RESEND_MS = 60 * 1000;    // أقل فاصل بين إرسالين
 var PLEDGE_MAX_ATTEMPTS = 5;
 var MAIL_NAME = 'حجوزات مشروع جبين';
+var MAIL_FROM = 'garawias@jyic.com.sa'; // يُستخدم كمرسل إذا كان مضافاً كـ "إرسال باسم" في Gmail، وإلا يكون عنوان الرد فقط
+
+/** إرسال موحّد: من العنوان الرسمي إن كان متاحاً كاسم مستعار في Gmail، وإلا من حساب السكربت مع الرد إلى العنوان الرسمي */
+function sendMail_(to, subject, html) {
+  var aliases = [];
+  try { aliases = GmailApp.getAliases() || []; } catch (e) { aliases = []; }
+  if (MAIL_FROM && aliases.indexOf(MAIL_FROM) >= 0) {
+    GmailApp.sendEmail(to, subject, '', { htmlBody: html, name: MAIL_NAME, from: MAIL_FROM, replyTo: MAIL_FROM });
+  } else {
+    MailApp.sendEmail({ to: to, subject: subject, htmlBody: html, name: MAIL_NAME, replyTo: MAIL_FROM || undefined });
+  }
+}
 
 function doPost(e) {
   var body = null;
@@ -163,7 +175,7 @@ function sendPledgeMail_(b, cfg, email, code, exp) {
     '<p style="color:#b3261e;font-weight:bold">الرمز صالح حتى ' + tsAr_(exp) + ' (5 دقائق) ويُستخدم مرة واحدة.</p>' +
     '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold">بمشاركتك هذا الرمز مع موظف الحجز، فإنك تؤكد اطلاعك على بيانات الحجز والتعهد وموافقتك عليهما، وتفوّض الموظف بتسجيل موافقتك.</p>' +
     '<p>إذا لم توافق على ما ورد أعلاه، فلا تشارك الرمز مع أحد.</p>';
-  MailApp.sendEmail({ to: email, subject: 'الإقرار والتعهد ورمز التحقق — حجز ' + (b.refNo || ''), htmlBody: mailShell_('الإقرار والتعهد — مشروع جبين السكني', inner), name: MAIL_NAME });
+  sendMail_(email, 'الإقرار والتعهد ورمز التحقق — حجز ' + (b.refNo || ''), mailShell_('الإقرار والتعهد — مشروع جبين السكني', inner));
 }
 function sendConfirmMail_(b, cfg, email, when) {
   var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
@@ -171,7 +183,7 @@ function sendConfirmMail_(b, cfg, email, when) {
     '<h3 style="margin:22px 0 6px">نسخة الإقرار والتعهد المؤكَّد (الإصدار ' + escH_(cfg.version || 1) + ')</h3>' +
     '<div style="white-space:pre-wrap;background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:14px">' + escH_(cfg.text) + '</div>' +
     '<p>احتفظ بهذه الرسالة كمرجع.</p>';
-  MailApp.sendEmail({ to: email, subject: 'تأكيد الإقرار والتعهد — حجز ' + (b.refNo || ''), htmlBody: mailShell_('تم تأكيد الإقرار والتعهد — مشروع جبين السكني', inner), name: MAIL_NAME });
+  sendMail_(email, 'تأكيد الإقرار والتعهد — حجز ' + (b.refNo || ''), mailShell_('تم تأكيد الإقرار والتعهد — مشروع جبين السكني', inner));
 }
 
 /** اختبار من المحرر: يرسل رسالتي التعهد والتأكيد إلى بريد المالك لحجز تجريبي دون المساس بأي حجز حقيقي */
@@ -180,7 +192,8 @@ function testPledgeMail() {
   var b = { refNo: 'JB-TEST-000-00000', unitId: 'AZ-000', district: 'العزيزية', plot: '000', block: '00', model: 'B1', company: 'اختبار', price: 1590000, name: 'عميل تجريبي', natId: '1000000000', bookingDate: '2026-11-03' };
   sendPledgeMail_(b, cfg, SUPER_ADMIN, '123456', Date.now() + PLEDGE_TTL_MS);
   sendConfirmMail_(b, cfg, SUPER_ADMIN, Date.now());
-  return 'sent to ' + SUPER_ADMIN;
+  var aliases = []; try { aliases = GmailApp.getAliases() || []; } catch (e) {}
+  return 'sent to ' + SUPER_ADMIN + ' | from alias available: ' + (aliases.indexOf(MAIL_FROM) >= 0) + ' | aliases: ' + aliases.join(', ');
 }
 
 function fetchJson_(url) {
