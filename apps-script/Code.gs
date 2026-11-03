@@ -102,7 +102,7 @@ function pledgeRoute_(body) {
   if (body.action === 'pledgeEmail') return pledgeEmail_(emp, bid, booking, body.email);
   if (!cfg.enabled || !cfg.text) throw new Error('طلب التعهد غير مفعّل في الإعدادات');
   if (body.action === 'pledgeSend') return pledgeSend_(emp, bid, booking, cfg, existing);
-  if (body.action === 'pledgeVerify') return pledgeVerify_(emp, bid, booking, cfg, body.code, body.recited === true);
+  if (body.action === 'pledgeVerify') return pledgeVerify_(emp, bid, booking, cfg, body.code);
   throw new Error('إجراء غير معروف');
 }
 
@@ -151,8 +151,7 @@ function seedPledgeText() {
 /** سياق الحجز الذي يرتبط به الرمز: أي تغيير فيه يُبطل الرمز */
 function pledgeCtx_(b) { return [b.unitId, b.price, b.payMethod, b.natId, b.name].map(function (v) { return String(v == null ? '' : v); }).join('|'); }
 
-function pledgeVerify_(emp, bid, booking, cfg, code, recited) {
-  if (recited !== true) throw new Error('يجب تأكيد تلاوة نص التعهد على العميل قبل إدخال الرمز');
+function pledgeVerify_(emp, bid, booking, cfg, code) {
   code = String(code || '').replace(/\D/g, '');
   var sec = fbGet_(SECRETS + '/' + bid);
   if (!sec || sec.used) throw new Error('لا يوجد رمز فعّال لهذا الحجز، أرسل التعهد أولاً');
@@ -173,7 +172,7 @@ function pledgeVerify_(emp, bid, booking, cfg, code, recited) {
   fbWrite_(SECRETS + '/' + bid, { used: true, usedAt: now }, 'patch');
   var rec = { state: 'confirmed', statement: 'تم تأكيد الإقرار والتعهد بواسطة الموظف بالرمز المرسل إلى بريد العميل',
     email: email, name: booking.name || '', natId: booking.natId || '', refNo: booking.refNo || '', unitId: booking.unitId, district: booking.district || '', block: booking.block || '', model: booking.model || '', price: booking.price || '', company: booking.company || '',
-    payMethod: booking.payMethod || '', version: version, textHash: textHash, text: fillPledge_(cfg.text, booking), template: cfg.text, sentAt: sec.sentAt, confirmedAt: now, by: emp.name, byEmail: emp.email, byRole: emp.role, recited: true, recitedBy: emp.email };
+    payMethod: booking.payMethod || '', version: version, textHash: textHash, text: fillPledge_(cfg.text, booking), template: cfg.text, sentAt: sec.sentAt, confirmedAt: now, by: emp.name, byEmail: emp.email, byRole: emp.role };
   fbWrite_(FIREBASE + '/pledges/' + bid, rec);
   audit_(emp, 'تأكيد الإقرار والتعهد', booking.unitId, bid, (booking.refNo || '') + ' — ' + email);
   try { sendConfirmMail_(booking, cfg, email, now); } catch (e) { audit_(emp, 'تعذر إرسال رسالة التأكيد', booking.unitId, bid, String(e)); }

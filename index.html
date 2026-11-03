@@ -502,12 +502,11 @@ function pledgeModal(bid){const b=bookings[bid];if(!b)return;const p=pledgeOf(bi
   let h=`<h3>الإقرار والتعهد — حجز ${esc(b.refNo||'')}</h3><div class="kv">
     <div>العميل</div><div>${esc(b.name)}</div><div>الوحدة</div><div><b>${esc(b.unitId)}</b> · ${esc(b.district)} · بلوك ${esc(b.block)} · ${esc(b.model)}</div>
     <div>بريد العميل</div><div dir="ltr" style="text-align:right"><span class="mono" id="plEmailShow">${esc(b.email||'—')}</span> ${conf?'':`<button class="btn sec sm" id="plEditEmail">تعديل</button>`}</div>
-    <div>الحالة</div><div id="plState">${conf?`<span class="st pledged">تم تأكيد الإقرار والتعهد</span> · ${fmtTime(p.confirmedAt)} · بواسطة ${esc(p.by||'')} · الإصدار ${p.version}${p.recited?' · تُلي على العميل':''}`:sent?`<span class="st sent">أُرسل الرمز</span> · صالح حتى ${fmtTime(p.expiresAt)} · أُرسل ${fmtTime(p.sentAt)}`:'لم يُرسل بعد'}</div></div>`;
+    <div>الحالة</div><div id="plState">${conf?`<span class="st pledged">تم تأكيد الإقرار والتعهد</span> · ${fmtTime(p.confirmedAt)} · بواسطة ${esc(p.by||'')} · الإصدار ${p.version}`:sent?`<span class="st sent">أُرسل الرمز</span> · صالح حتى ${fmtTime(p.expiresAt)} · أُرسل ${fmtTime(p.sentAt)}`:'لم يُرسل بعد'}</div></div>`;
   if(conf)h+=`<div class="pledge-box" style="margin-top:10px">${esc(p.text||'')}</div><div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;
   else h+=`<div class="hint" style="margin-top:10px">راجع مع العميل صحة البريد وبيانات الوحدة، ثم أرسل التعهد. يصل العميل نص التعهد ورمز تحقق صالحاً 5 دقائق ولا يظهر لك. إذا وافق العميل يعطيك الرمز فتدخله هنا.</div>
     <div class="actions"><button class="btn" id="plSend">${sent?'إعادة إرسال التعهد والرمز':'إرسال التعهد ورمز التحقق للعميل'}</button></div>
-    <details style="margin-top:12px" ${sent?'open':''}><summary style="cursor:pointer;font-weight:700">نص الإقرار والتعهد (الإصدار ${(config.pledge&&config.pledge.version)||1}) — اتلُه على العميل</summary><div class="pledge-box" style="margin-top:8px">${esc(fillPledge((config.pledge&&config.pledge.text)||'',b))}</div></details>
-    <label class="switch" style="margin-top:10px;font-size:14px"><input type="checkbox" id="plRecited" ${sent?'':'disabled'}><span>تمت تلاوة نص التعهد على العميل وأبدى موافقته</span></label>
+    <details style="margin-top:12px" ${sent?'open':''}><summary style="cursor:pointer;font-weight:700">نص الإقرار والتعهد (الإصدار ${(config.pledge&&config.pledge.version)||1})</summary><div class="pledge-box" style="margin-top:8px">${esc(fillPledge((config.pledge&&config.pledge.text)||'',b))}</div></details>
     <div class="f" style="margin-top:12px"><label>رمز التحقق من العميل</label><input id="plCode" class="code-in" inputmode="numeric" maxlength="6" placeholder="------" ${sent?'':'disabled'}></div>
     <div class="actions"><button class="btn" id="plVerify" ${sent?'':'disabled'}>تأكيد الرمز وتسجيل الموافقة</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div><div class="err" id="plErr" style="margin-top:6px"></div>`;
   showModal(h);if(conf)return;
@@ -516,8 +515,8 @@ function pledgeModal(bid){const b=bookings[bid];if(!b)return;const p=pledgeOf(bi
     busy(true);try{await pledgeApi({action:'pledgeEmail',bid,email:e2});toast('تم تحديث البريد وإبطال أي رمز سابق');setTimeout(()=>pledgeModal(bid),400)}catch(e){$('plErr').textContent=e.message;busy(false)}};
   $('plSend').onclick=async()=>{if(!validEmail(b.email||''))return $('plErr').textContent='أضف بريد العميل أولاً';busy(true);$('plErr').textContent='';
     try{const r=await pledgeApi({action:'pledgeSend',bid});toast('أُرسل التعهد والرمز إلى بريد العميل');setTimeout(()=>{pledgeModal(bid);const c=$('plCode');if(c)c.focus()},600)}catch(e){$('plErr').textContent=e.message;busy(false)}};
-  $('plVerify').onclick=async()=>{const code=sanitizeDigits($('plCode').value);if(!$('plRecited').checked)return $('plErr').textContent='أكّد أولاً أنك تلوت نص التعهد على العميل';if(code.length!==6)return $('plErr').textContent='الرمز 6 أرقام';busy(true);$('plErr').textContent='';
-    try{await pledgeApi({action:'pledgeVerify',bid,code,recited:true});toast('تم تأكيد الإقرار والتعهد');setTimeout(()=>pledgeModal(bid),600)}catch(e){$('plErr').textContent=e.message;busy(false)}};
+  $('plVerify').onclick=async()=>{const code=sanitizeDigits($('plCode').value);if(code.length!==6)return $('plErr').textContent='الرمز 6 أرقام';busy(true);$('plErr').textContent='';
+    try{await pledgeApi({action:'pledgeVerify',bid,code});toast('تم تأكيد الإقرار والتعهد');setTimeout(()=>pledgeModal(bid),600)}catch(e){$('plErr').textContent=e.message;busy(false)}};
   $('plCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('plVerify').click()});
 }
 function isAlloc(b){return !!b && !b.natId && /تخصيص/.test(b.source||'')}
