@@ -214,7 +214,7 @@ tr:hover td{background:var(--hover)}
     <div class="tabs">
       <button class="tab active" data-tab="new">حجز جديد</button>
       <button class="tab" data-tab="bookings">الحجوزات <span class="badge hidden" id="pendBadge"></span></button>
-      <button class="tab" data-tab="units">الوحدات (الماستر)</button>
+      <button class="tab hidden" data-tab="units">الوحدات (الماستر)</button>
       <button class="tab" data-tab="map">الخريطة</button>
       <button class="tab" data-tab="dash">لوحة المؤشرات</button>
       <button class="tab" data-tab="exceptions">تقرير التدقيق <span class="badge hidden" id="excBadge"></span></button>
@@ -841,21 +841,26 @@ $('uExport').onclick=()=>csv('الوحدات',['رقم الوحدة','الحي',
 Object.assign(COMPANY_COLOR,{'ياسرف':'#e3b505','مرافق':'#2e9e5b','الفارابي':'#2f6fd6','غير مخصصة':'#8a8a8a'});
 const MAP_IMG={'العزيزية':'maps/map-aziziyah.jpg','النخيل':'maps/map-nakheel.jpg'};
 let mapDistrict=null,mapZoom=1,mapFilter={company:null,status:null};
+function unitCompany(u){const b=activeBookingForUnit(u.id);return (b&&b.company)?b.company:u.company}
+function ensureColor(c){if(c&&!COMPANY_COLOR[c])COMPANY_COLOR[c]=EXTRA_COLORS[Object.keys(COMPANY_COLOR).length%EXTRA_COLORS.length];return COMPANY_COLOR[c]||'#999'}
 function initMap(){
   const ds=DIST_IN_MASTER.filter(d=>MAP_IMG[d]);mapDistrict=mapDistrict||ds[0];
+  const present=new Set(MASTER.filter(u=>u.district===mapDistrict&&u.x!=null).map(unitCompany));present.forEach(ensureColor);
+  const legendCos=[...COMPANIES,...[...present].filter(c=>!COMPANIES.includes(c)&&c!==UNALLOC),UNALLOC].filter(c=>present.has(c));
+  if(mapFilter.company&&!present.has(mapFilter.company))mapFilter.company=null;
   $('mapDistricts').innerHTML=ds.map(d=>`<button class="${d===mapDistrict?'active':''}" data-d="${d}">${esc(d)}</button>`).join('');
   $('mapDistricts').querySelectorAll('button').forEach(b=>b.onclick=()=>{mapDistrict=b.dataset.d;initMap()});
-  $('mapLegend').innerHTML=[...COMPANIES,UNALLOC].map(c=>`<button class="lg ${mapFilter.company===c?'active':''}" data-c="${esc(c)}"><i style="border-color:${COMPANY_COLOR[c]};background:${COMPANY_COLOR[c]}"></i>${esc(c)}</button>`).join('')
+  $('mapLegend').innerHTML=legendCos.map(c=>`<button class="lg ${mapFilter.company===c?'active':''}" data-c="${esc(c)}"><i style="border-color:${COMPANY_COLOR[c]};background:${COMPANY_COLOR[c]}"></i>${esc(c)}</button>`).join('')
     +`<button class="lg ${mapFilter.status==='available'?'active':''}" data-s="available"><i style="border-color:#555;background:transparent"></i>متاحة</button><button class="lg ${mapFilter.status==='pending'?'active':''}" data-s="pending"><i style="border-color:#555;background:#555;box-shadow:inset 0 0 0 3px #fff"></i>مبدئي</button><button class="lg ${mapFilter.status==='approved'?'active':''}" data-s="approved"><i style="border-color:#555;background:#555"></i>معتمد</button>`;
   $('mapLegend').querySelectorAll('.lg').forEach(b=>b.onclick=()=>{if(b.dataset.c)mapFilter.company=mapFilter.company===b.dataset.c?null:b.dataset.c;else mapFilter.status=mapFilter.status===b.dataset.s?null:b.dataset.s;initMap()});
   $('mapimg').src=MAP_IMG[mapDistrict];renderMarkers();
 }
 function renderMarkers(){
   if(!mapDistrict)return;const us=MASTER.filter(u=>u.district===mapDistrict&&u.x!=null);let st={available:0,pending:0,approved:0};
-  const shown=us.filter(u=>(!mapFilter.company||u.company===mapFilter.company)&&(!mapFilter.status||unitStatus(u.id)===mapFilter.status));
-  $('markers').innerHTML=us.map(u=>{const s=unitStatus(u.id);const vis=shown.includes(u);if(vis)st[s]++;const c=COMPANY_COLOR[u.company]||'#999';
+  const shown=us.filter(u=>(!mapFilter.company||unitCompany(u)===mapFilter.company)&&(!mapFilter.status||unitStatus(u.id)===mapFilter.status));
+  $('markers').innerHTML=us.map(u=>{const s=unitStatus(u.id);const vis=shown.includes(u);if(vis)st[s]++;const c=ensureColor(unitCompany(u));
     const pl=s==='approved'&&isPledged(bidOfUnit(u.id));
-    return `<div class="mk ${s}${pl?' pl':''}${vis?'':' dim'}" data-id="${u.id}" title="${u.id} · بلوك ${u.block} · ${u.model} · ${esc(u.company)} · ${unitStatusLabel(u.id)}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
+    return `<div class="mk ${s}${pl?' pl':''}${vis?'':' dim'}" data-id="${u.id}" title="${u.id} · بلوك ${u.block} · ${u.model} · ${esc(unitCompany(u))} · ${unitStatusLabel(u.id)}" style="left:${u.x}%;top:${u.y}%;border-color:${c};background:${s==='available'?'rgba(255,255,255,.85)':c}">${parseInt(u.plot,10)}</div>`}).join('');
   $('markers').querySelectorAll('.mk').forEach(m=>m.onclick=e=>{e.stopPropagation();showUnit(m.dataset.id)});
   const fl=[mapFilter.company,mapFilter.status&&STATUS_AR[mapFilter.status]].filter(Boolean).join(' · ');
   $('mapCount').textContent=`${shown.length} فيلا في ${mapDistrict}${fl?' ('+fl+')':''}: متاحة ${st.available} · مبدئي ${st.pending} · معتمد ${st.approved}`;
