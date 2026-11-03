@@ -771,7 +771,7 @@ $('submitBtn').onclick=async()=>{
   showModal(`<h3>تم تسجيل الحجز المبدئي</h3><div class="banner ok" style="font-size:26px;justify-content:center;letter-spacing:1px">${refNo}</div>
     <div class="kv"><div>الوحدة</div><div><b>${esc(u.id)}</b> · ${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model}</div><div>العميل</div><div>${esc(booking.name)}</div><div>الهوية</div><div class="mono">${esc(natId)}</div><div>الشركة</div><div>${esc(booking.company)}</div><div>السعر</div><div>${fmt(u.price)} ر.س</div><div>الحالة</div><div><span class="st pending">مبدئي</span> بانتظار اعتماد المراجع</div></div>
     <p class="muted" style="font-size:13px">أعطِ العميل كود الحجز هذا؛ هو المرجع في أي مراجعة أو استفسار.</p>
-    <div class="actions"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${refNo}');toast('تم نسخ الكود')">نسخ الكود</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
+    <div class="actions">${pledgeOn()?`<button class="btn" onclick="pledgeModal('${bid}')">إرسال التعهد للعميل</button>`:''}<button class="btn ${pledgeOn()?'sec':''}" onclick="navigator.clipboard&&navigator.clipboard.writeText('${refNo}');toast('تم نسخ الكود')">نسخ الكود</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
 };
 
 /* ===== Audit + live Google Sheet mirror ===== */
