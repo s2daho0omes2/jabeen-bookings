@@ -23,17 +23,21 @@ var PLEDGE_TTL_MS = 5 * 60 * 1000;   // صلاحية الرمز
 var PLEDGE_RESEND_MS = 60 * 1000;    // أقل فاصل بين إرسالين
 var PLEDGE_MAX_ATTEMPTS = 5;
 var MAIL_NAME = 'حجوزات مشروع جبين';
-var MAIL_FROM = 'garawias@jyic.com.sa'; // يُستخدم كمرسل إذا كان مضافاً كـ "إرسال باسم" في Gmail، وإلا يكون عنوان الرد فقط
+var MAIL_FROM = 'noreply@jabeen-bookings.online'; // عبر Resend بعد توثيق الدومين
+var MAIL_REPLY = 'garawias@jyic.com.sa';            // الردود تصل هنا
+var WORK_START = 7, WORK_END = 17;                   // ساعات العمل (توقيت الرياض) لتقرير الإجراءات خارج الدوام
+var UNCONFIRMED_HOURS = 48;
 
-/** إرسال موحّد: من العنوان الرسمي إن كان متاحاً كاسم مستعار في Gmail، وإلا من حساب السكربت مع الرد إلى العنوان الرسمي */
+/** إرسال موحّد: عبر Resend من دومين المشروع إذا وُجد المفتاح RESEND_KEY في Script Properties، وإلا من حساب السكربت (احتياط) */
 function sendMail_(to, subject, html) {
-  var aliases = [];
-  try { aliases = GmailApp.getAliases() || []; } catch (e) { aliases = []; }
-  if (MAIL_FROM && aliases.indexOf(MAIL_FROM) >= 0) {
-    GmailApp.sendEmail(to, subject, '', { htmlBody: html, name: MAIL_NAME, from: MAIL_FROM, replyTo: MAIL_FROM });
-  } else {
-    MailApp.sendEmail({ to: to, subject: subject, htmlBody: html, name: MAIL_NAME, replyTo: MAIL_FROM || undefined });
+  var key = PropertiesService.getScriptProperties().getProperty('RESEND_KEY');
+  if (key) {
+    var r = UrlFetchApp.fetch('https://api.resend.com/emails', { method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + key },
+      payload: JSON.stringify({ from: MAIL_NAME + ' <' + MAIL_FROM + '>', to: [to], subject: subject, html: html, reply_to: MAIL_REPLY }), muteHttpExceptions: true });
+    if (r.getResponseCode() >= 300) throw new Error('تعذر إرسال البريد (' + r.getResponseCode() + '): ' + r.getContentText().slice(0, 200));
+    return;
   }
+  MailApp.sendEmail({ to: to, subject: subject, htmlBody: html, name: MAIL_NAME, replyTo: MAIL_REPLY });
 }
 
 function doPost(e) {
@@ -98,7 +102,7 @@ function pledgeRoute_(body) {
   if (body.action === 'pledgeEmail') return pledgeEmail_(emp, bid, booking, body.email);
   if (!cfg.enabled || !cfg.text) throw new Error('طلب التعهد غير مفعّل في الإعدادات');
   if (body.action === 'pledgeSend') return pledgeSend_(emp, bid, booking, cfg, existing);
-  if (body.action === 'pledgeVerify') return pledgeVerify_(emp, bid, booking, cfg, body.code);
+  if (body.action === 'pledgeVerify') return pledgeVerify_(emp, bid, booking, cfg, body.code, body.recited === true);
   throw new Error('إجراء غير معروف');
 }
 
@@ -121,26 +125,30 @@ function pledgeSend_(emp, bid, booking, cfg, existing) {
   var code = String(Math.floor(100000 + Math.random() * 900000));
   var salt = Utilities.getUuid();
   var now = Date.now(), exp = now + PLEDGE_TTL_MS;
-  var version = Number(cfg.version || 1), textHash = sha256_(cfg.text);
-  fbWrite_(SECRETS + '/' + bid, { hash: sha256_(salt + '|' + code + '|' + bid + '|' + email + '|' + version + '|' + textHash + '|' + booking.unitId), salt: salt, email: email, version: version, textHash: textHash, unitId: booking.unitId, sentAt: now, expiresAt: exp, attempts: 0, used: false });
+  var version = Number(cfg.version || 1), textHash = sha256_(cfg.text), ctx = pledgeCtx_(booking);
+  fbWrite_(SECRETS + '/' + bid, { hash: sha256_(salt + '|' + code + '|' + bid + '|' + email + '|' + version + '|' + textHash + '|' + ctx), salt: salt, email: email, version: version, textHash: textHash, ctx: ctx, unitId: booking.unitId, sentAt: now, expiresAt: exp, attempts: 0, used: false });
   sendPledgeMail_(booking, cfg, email, code, exp);
   fbWrite_(FIREBASE + '/pledges/' + bid, { state: 'sent', email: email, version: version, sentAt: now, expiresAt: exp, sentBy: emp.name, sentByEmail: emp.email, refNo: booking.refNo || '', unitId: booking.unitId });
   audit_(emp, 'إرسال التعهد ورمز التحقق', booking.unitId, bid, (booking.refNo || '') + ' — ' + email);
   return { ok: true, expiresAt: exp };
 }
 
-function pledgeVerify_(emp, bid, booking, cfg, code) {
+/** سياق الحجز الذي يرتبط به الرمز: أي تغيير فيه يُبطل الرمز */
+function pledgeCtx_(b) { return [b.unitId, b.price, b.payMethod, b.natId, b.name].map(function (v) { return String(v == null ? '' : v); }).join('|'); }
+
+function pledgeVerify_(emp, bid, booking, cfg, code, recited) {
+  if (recited !== true) throw new Error('يجب تأكيد تلاوة نص التعهد على العميل قبل إدخال الرمز');
   code = String(code || '').replace(/\D/g, '');
   var sec = fbGet_(SECRETS + '/' + bid);
   if (!sec || sec.used) throw new Error('لا يوجد رمز فعّال لهذا الحجز، أرسل التعهد أولاً');
   if (Date.now() > sec.expiresAt) throw new Error('انتهت صلاحية الرمز (5 دقائق)، أعد الإرسال');
   if (sec.attempts >= PLEDGE_MAX_ATTEMPTS) throw new Error('تجاوزت عدد المحاولات، أعد إرسال التعهد');
-  var email = String(booking.email || '').toLowerCase(), version = Number(cfg.version || 1), textHash = sha256_(cfg.text);
-  if (sec.email !== email || sec.version !== version || sec.textHash !== textHash || sec.unitId !== booking.unitId) {
+  var email = String(booking.email || '').toLowerCase(), version = Number(cfg.version || 1), textHash = sha256_(cfg.text), ctx = pledgeCtx_(booking);
+  if (sec.email !== email || sec.version !== version || sec.textHash !== textHash || sec.ctx !== ctx) {
     fbDelete_(SECRETS + '/' + bid);
     throw new Error('تغيّرت بيانات الحجز أو نص التعهد بعد إرسال الرمز، يلزم إرسال جديد');
   }
-  if (code.length !== 6 || sha256_(sec.salt + '|' + code + '|' + bid + '|' + email + '|' + version + '|' + textHash + '|' + booking.unitId) !== sec.hash) {
+  if (code.length !== 6 || sha256_(sec.salt + '|' + code + '|' + bid + '|' + email + '|' + version + '|' + textHash + '|' + ctx) !== sec.hash) {
     fbWrite_(SECRETS + '/' + bid, { attempts: (sec.attempts || 0) + 1 }, 'patch');
     audit_(emp, 'رمز تعهد خاطئ', booking.unitId, bid, booking.refNo || '');
     var left = PLEDGE_MAX_ATTEMPTS - (sec.attempts || 0) - 1;
@@ -150,7 +158,7 @@ function pledgeVerify_(emp, bid, booking, cfg, code) {
   fbWrite_(SECRETS + '/' + bid, { used: true, usedAt: now }, 'patch');
   var rec = { state: 'confirmed', statement: 'تم تأكيد الإقرار والتعهد بواسطة الموظف بالرمز المرسل إلى بريد العميل',
     email: email, name: booking.name || '', natId: booking.natId || '', refNo: booking.refNo || '', unitId: booking.unitId, district: booking.district || '', block: booking.block || '', model: booking.model || '', price: booking.price || '', company: booking.company || '',
-    version: version, textHash: textHash, text: cfg.text, sentAt: sec.sentAt, confirmedAt: now, by: emp.name, byEmail: emp.email, byRole: emp.role };
+    payMethod: booking.payMethod || '', version: version, textHash: textHash, text: cfg.text, sentAt: sec.sentAt, confirmedAt: now, by: emp.name, byEmail: emp.email, byRole: emp.role, recited: true, recitedBy: emp.email };
   fbWrite_(FIREBASE + '/pledges/' + bid, rec);
   audit_(emp, 'تأكيد الإقرار والتعهد', booking.unitId, bid, (booking.refNo || '') + ' — ' + email);
   try { sendConfirmMail_(booking, cfg, email, now); } catch (e) { audit_(emp, 'تعذر إرسال رسالة التأكيد', booking.unitId, bid, String(e)); }
@@ -186,14 +194,50 @@ function sendConfirmMail_(b, cfg, email, when) {
   sendMail_(email, 'تأكيد الإقرار والتعهد — حجز ' + (b.refNo || ''), mailShell_('تم تأكيد الإقرار والتعهد — مشروع جبين السكني', inner));
 }
 
+/* ---------- تقرير الحوكمة اليومي للإدارة ---------- */
+function setupReportTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'dailyPledgeReport') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('dailyPledgeReport').timeBased().atHour(8).everyDays(1).inTimezone('Asia/Riyadh').create();
+  return dailyPledgeReport();
+}
+function riyadhHour_(ms) { return Number(Utilities.formatDate(new Date(ms), 'Asia/Riyadh', 'H')); }
+function riyadhDow_(ms) { return Utilities.formatDate(new Date(ms), 'Asia/Riyadh', 'u'); } // 5=الجمعة 6=السبت
+function dailyPledgeReport() {
+  var cfg = fbGet_(FIREBASE + '/config/pledge') || {};
+  var to = cfg.reportEmail || SUPER_ADMIN;
+  var bookings = fbGet_(FIREBASE + '/bookings') || {}, pledges = fbGet_(FIREBASE + '/pledges') || {}, audit = fbGet_(FIREBASE + '/audit') || {};
+  var now = Date.now(), day = 24 * 3600 * 1000;
+  // 1) حجوزات نشطة بلا تعهد مؤكد منذ أكثر من 48 ساعة (عند تفعيل الميزة)
+  var late = [];
+  if (cfg.enabled) Object.keys(bookings).forEach(function (k) { var b = bookings[k]; if (!b || (b.status !== 'pending' && b.status !== 'approved')) return;
+    var p = pledges[k]; if (p && p.state === 'confirmed') return;
+    var since = p && p.sentAt ? p.sentAt : b.createdAt; if (!since || now - since < UNCONFIRMED_HOURS * 3600 * 1000) return;
+    late.push([b.refNo || '', b.unitId, b.name || '', b.maker || '', p ? 'أُرسل ' + tsAr_(p.sentAt) + ' ولم يُؤكَّد' : 'لم يُرسل', STATUS_AR[b.status] || b.status]); });
+  // 2) رموز خاطئة متكررة خلال 7 أيام (3 فأكثر لنفس الحجز)
+  var wrong = {}, entries = Object.keys(audit).map(function (k) { return audit[k]; });
+  entries.forEach(function (a) { if (a.action === 'رمز تعهد خاطئ' && now - a.at < 7 * day) { var key = (a.bid || '') + '|' + (a.whoEmail || a.who || ''); wrong[key] = wrong[key] || { n: 0, a: a }; wrong[key].n++; } });
+  var repeated = Object.keys(wrong).filter(function (k) { return wrong[k].n >= 3; }).map(function (k) { var w = wrong[k]; return [w.a.details || '', w.a.unitId || '', w.a.who || '', w.n]; });
+  // 3) إجراءات خلال آخر 24 ساعة خارج ساعات العمل أو في الجمعة/السبت
+  var SENSITIVE = ['إنشاء حجز مبدئي', 'اعتماد حجز', 'إلغاء حجز', 'رفض حجز', 'إرسال التعهد ورمز التحقق', 'تأكيد الإقرار والتعهد', 'تعديل بريد العميل', 'إعدادات التعهد'];
+  var offHours = entries.filter(function (a) { if (now - a.at > day || SENSITIVE.indexOf(a.action) < 0) return false; var h = riyadhHour_(a.at), d = riyadhDow_(a.at); return d === '5' || d === '6' || h < WORK_START || h >= WORK_END; })
+    .sort(function (a, b) { return b.at - a.at; }).map(function (a) { return [tsAr_(a.at), a.who || '', a.action, a.unitId || '', a.details || '']; });
+  function tbl(head, rows) { if (!rows.length) return '<p style="color:#1e6b45">لا شيء.</p>'; return '<table dir="rtl" style="border-collapse:collapse;font-size:13px;width:100%"><tr>' + head.map(function (h) { return '<th style="border:1px solid #ddd;padding:5px 8px;background:#f3f6f4">' + escH_(h) + '</th>'; }).join('') + '</tr>' + rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td style="border:1px solid #ddd;padding:5px 8px">' + escH_(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>'; }
+  var confirmedToday = Object.keys(pledges).filter(function (k) { var p = pledges[k]; return p && p.state === 'confirmed' && now - p.confirmedAt < day; }).length;
+  var inner = '<p>تقرير ' + tsAr_(now).slice(0, 10) + ' — التعهدات المؤكدة خلال 24 ساعة: <b>' + confirmedToday + '</b>' + (cfg.enabled ? '' : ' (ميزة التعهد موقوفة حالياً)') + '</p>' +
+    '<h3>1) حجوزات نشطة بلا تعهد مؤكد منذ أكثر من ' + UNCONFIRMED_HOURS + ' ساعة (' + late.length + ')</h3>' + tbl(['كود الحجز', 'الوحدة', 'العميل', 'المُدخل', 'حالة التعهد', 'حالة الحجز'], late) +
+    '<h3>2) رموز خاطئة متكررة خلال 7 أيام (' + repeated.length + ')</h3>' + tbl(['الحجز', 'الوحدة', 'الموظف', 'عدد المحاولات'], repeated) +
+    '<h3>3) إجراءات خارج ساعات العمل (' + WORK_START + ':00–' + WORK_END + ':00) أو في عطلة نهاية الأسبوع خلال 24 ساعة (' + offHours.length + ')</h3>' + tbl(['الوقت', 'الموظف', 'الإجراء', 'الوحدة', 'التفاصيل'], offHours);
+  sendMail_(to, 'تقرير حوكمة التعهدات — ' + tsAr_(now).slice(0, 10), mailShell_('تقرير حوكمة التعهدات اليومي', inner));
+  return { ok: true, to: to, late: late.length, repeated: repeated.length, offHours: offHours.length };
+}
+
 /** اختبار من المحرر: يرسل رسالتي التعهد والتأكيد إلى بريد المالك لحجز تجريبي دون المساس بأي حجز حقيقي */
 function testPledgeMail() {
   var cfg = fbGet_(FIREBASE + '/config/pledge') || { text: '(نص التعهد لم يُحفظ بعد في الإعدادات)', version: 0 };
   var b = { refNo: 'JB-TEST-000-00000', unitId: 'AZ-000', district: 'العزيزية', plot: '000', block: '00', model: 'B1', company: 'اختبار', price: 1590000, name: 'عميل تجريبي', natId: '1000000000', bookingDate: '2026-11-03' };
   sendPledgeMail_(b, cfg, SUPER_ADMIN, '123456', Date.now() + PLEDGE_TTL_MS);
   sendConfirmMail_(b, cfg, SUPER_ADMIN, Date.now());
-  var aliases = []; try { aliases = GmailApp.getAliases() || []; } catch (e) {}
-  return 'sent to ' + SUPER_ADMIN + ' | from alias available: ' + (aliases.indexOf(MAIL_FROM) >= 0) + ' | aliases: ' + aliases.join(', ');
+  return 'sent to ' + SUPER_ADMIN + ' via ' + (PropertiesService.getScriptProperties().getProperty('RESEND_KEY') ? 'Resend (' + MAIL_FROM + ')' : 'Gmail fallback');
 }
 
 function fetchJson_(url) {

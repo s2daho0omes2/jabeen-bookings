@@ -378,7 +378,7 @@ tr:hover td{background:var(--hover)}
           <div class="f"><label>الصلاحية</label><select id="usrRole"><option value="maker">مُدخل بيانات</option><option value="checker">مُراجع ومُدخل بيانات</option><option value="admin">مدير النظام</option></select></div>
         </div>
         <div class="actions"><button class="btn" id="addUser">إضافة / تحديث</button></div>
-        <div class="tblwrap"><table><thead><tr><th>البريد</th><th>الاسم</th><th>الصلاحية</th><th></th></tr></thead><tbody id="usersBody"></tbody></table></div>
+        <div class="tblwrap"><table><thead><tr><th>البريد</th><th>الاسم</th><th>الصلاحية</th><th title="يستطيع اعتماد الحجز حتى لو لم يُؤكَّد التعهد (عند تفعيل شرط التعهد)">اعتماد بدون تعهد</th><th></th></tr></thead><tbody id="usersBody"></tbody></table></div>
       </div>
       <div class="card">
         <h2>القوائم المنسدلة</h2>
@@ -393,7 +393,10 @@ tr:hover td{background:var(--hover)}
       <div class="card">
         <h2>الإقرار والتعهد الإلكتروني</h2>
         <div class="hint">عند التفعيل يصبح بريد العميل إلزامياً في الحجز، ويظهر زر «التعهد» على كل حجز نشط: يرسل النظام للعميل نص التعهد ورمز تحقق صالحاً 5 دقائق لا يراه الموظف، ويؤكد الموظف الموافقة بإدخال الرمز. أي تعديل على نص التعهد ينشئ إصداراً جديداً ويُبطل الرموز المرسلة.</div>
-        <label class="switch" style="margin:6px 0 14px"><input type="checkbox" id="plEnabled"><span>تفعيل طلب التعهد</span></label>
+        <label class="switch" style="margin:6px 0 10px"><input type="checkbox" id="plEnabled"><span>تفعيل طلب التعهد</span></label><br>
+        <label class="switch" style="margin:0 0 14px"><input type="checkbox" id="plRequire"><span>لا يُعتمد الحجز نهائياً إلا بعد تأكيد التعهد</span></label>
+        <div class="muted" style="font-size:12px;margin:-8px 0 12px">الاستثناء يُمنح لحسابات محددة من عمود «اعتماد بدون تعهد» في جدول المستخدمين أعلاه. المدير الرئيسي مستثنى دائماً.</div>
+        <div class="f"><label>بريد الإدارة لتقرير التعهدات اليومي</label><input id="plReport" type="email" dir="ltr" placeholder="management@example.com"><div class="muted" style="font-size:12px;margin-top:4px">يصله كل صباح: تعهدات لم تُؤكَّد خلال 48 ساعة، رموز خاطئة متكررة، وإجراءات خارج ساعات العمل.</div></div>
         <div class="f"><label>نص الإقرار والتعهد <span class="muted" id="plVer"></span></label><textarea id="plText" rows="12" style="line-height:1.8"></textarea></div>
         <div class="actions"><button class="btn" id="savePledge">حفظ إعدادات التعهد</button><span class="muted" style="font-size:13px">يحتاج رابط خدمة Apps Script أعلاه، ويجب أن يكون البريد المرسل منه مفعّلاً فيه.</span></div>
       </div>
@@ -482,6 +485,7 @@ const DEFAULT_PLEDGE=`أقرّ أنا الموقّع أدناه، العميل �
 وبمشاركتي رمز التحقق المرسل إلى بريدي الإلكتروني مع موظف الحجز، أؤكد اطلاعي على هذا الإقرار والتعهد وموافقتي عليه.`;
 const pledgeOn=()=>!!(config.pledge&&config.pledge.enabled);
 const pledgeOf=bid=>pledges[bid]||null;
+function canBypassPledge(){if(session.email===SUPER_ADMIN)return true;const u=users[emailKey(session.email)];return !!(u&&u.bypassPledge)}
 const isPledged=bid=>{const p=pledgeOf(bid);return !!(p&&p.state==='confirmed')};
 function pledgeBadge(bid,b){const p=pledgeOf(bid);
   if(p&&p.state==='confirmed')return `<span class="st pledged" title="تم تأكيد الإقرار والتعهد ${fmtTime(p.confirmedAt)}">متعهّد ✓</span>`;
@@ -498,10 +502,12 @@ function pledgeModal(bid){const b=bookings[bid];if(!b)return;const p=pledgeOf(bi
   let h=`<h3>الإقرار والتعهد — حجز ${esc(b.refNo||'')}</h3><div class="kv">
     <div>العميل</div><div>${esc(b.name)}</div><div>الوحدة</div><div><b>${esc(b.unitId)}</b> · ${esc(b.district)} · بلوك ${esc(b.block)} · ${esc(b.model)}</div>
     <div>بريد العميل</div><div dir="ltr" style="text-align:right"><span class="mono" id="plEmailShow">${esc(b.email||'—')}</span> ${conf?'':`<button class="btn sec sm" id="plEditEmail">تعديل</button>`}</div>
-    <div>الحالة</div><div id="plState">${conf?`<span class="st pledged">تم تأكيد الإقرار والتعهد</span> · ${fmtTime(p.confirmedAt)} · بواسطة ${esc(p.by||'')} · الإصدار ${p.version}`:sent?`<span class="st sent">أُرسل الرمز</span> · صالح حتى ${fmtTime(p.expiresAt)} · أُرسل ${fmtTime(p.sentAt)}`:'لم يُرسل بعد'}</div></div>`;
+    <div>الحالة</div><div id="plState">${conf?`<span class="st pledged">تم تأكيد الإقرار والتعهد</span> · ${fmtTime(p.confirmedAt)} · بواسطة ${esc(p.by||'')} · الإصدار ${p.version}${p.recited?' · تُلي على العميل':''}`:sent?`<span class="st sent">أُرسل الرمز</span> · صالح حتى ${fmtTime(p.expiresAt)} · أُرسل ${fmtTime(p.sentAt)}`:'لم يُرسل بعد'}</div></div>`;
   if(conf)h+=`<div class="pledge-box" style="margin-top:10px">${esc(p.text||'')}</div><div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;
   else h+=`<div class="hint" style="margin-top:10px">راجع مع العميل صحة البريد وبيانات الوحدة، ثم أرسل التعهد. يصل العميل نص التعهد ورمز تحقق صالحاً 5 دقائق ولا يظهر لك. إذا وافق العميل يعطيك الرمز فتدخله هنا.</div>
     <div class="actions"><button class="btn" id="plSend">${sent?'إعادة إرسال التعهد والرمز':'إرسال التعهد ورمز التحقق للعميل'}</button></div>
+    <details style="margin-top:12px" ${sent?'open':''}><summary style="cursor:pointer;font-weight:700">نص الإقرار والتعهد (الإصدار ${(config.pledge&&config.pledge.version)||1}) — اتلُه على العميل</summary><div class="pledge-box" style="margin-top:8px">${esc((config.pledge&&config.pledge.text)||'')}</div></details>
+    <label class="switch" style="margin-top:10px;font-size:14px"><input type="checkbox" id="plRecited" ${sent?'':'disabled'}><span>تمت تلاوة نص التعهد على العميل وأبدى موافقته</span></label>
     <div class="f" style="margin-top:12px"><label>رمز التحقق من العميل</label><input id="plCode" class="code-in" inputmode="numeric" maxlength="6" placeholder="------" ${sent?'':'disabled'}></div>
     <div class="actions"><button class="btn" id="plVerify" ${sent?'':'disabled'}>تأكيد الرمز وتسجيل الموافقة</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div><div class="err" id="plErr" style="margin-top:6px"></div>`;
   showModal(h);if(conf)return;
@@ -510,8 +516,8 @@ function pledgeModal(bid){const b=bookings[bid];if(!b)return;const p=pledgeOf(bi
     busy(true);try{await pledgeApi({action:'pledgeEmail',bid,email:e2});toast('تم تحديث البريد وإبطال أي رمز سابق');setTimeout(()=>pledgeModal(bid),400)}catch(e){$('plErr').textContent=e.message;busy(false)}};
   $('plSend').onclick=async()=>{if(!validEmail(b.email||''))return $('plErr').textContent='أضف بريد العميل أولاً';busy(true);$('plErr').textContent='';
     try{const r=await pledgeApi({action:'pledgeSend',bid});toast('أُرسل التعهد والرمز إلى بريد العميل');setTimeout(()=>{pledgeModal(bid);const c=$('plCode');if(c)c.focus()},600)}catch(e){$('plErr').textContent=e.message;busy(false)}};
-  $('plVerify').onclick=async()=>{const code=sanitizeDigits($('plCode').value);if(code.length!==6)return $('plErr').textContent='الرمز 6 أرقام';busy(true);$('plErr').textContent='';
-    try{await pledgeApi({action:'pledgeVerify',bid,code});toast('تم تأكيد الإقرار والتعهد');setTimeout(()=>pledgeModal(bid),600)}catch(e){$('plErr').textContent=e.message;busy(false)}};
+  $('plVerify').onclick=async()=>{const code=sanitizeDigits($('plCode').value);if(!$('plRecited').checked)return $('plErr').textContent='أكّد أولاً أنك تلوت نص التعهد على العميل';if(code.length!==6)return $('plErr').textContent='الرمز 6 أرقام';busy(true);$('plErr').textContent='';
+    try{await pledgeApi({action:'pledgeVerify',bid,code,recited:true});toast('تم تأكيد الإقرار والتعهد');setTimeout(()=>pledgeModal(bid),600)}catch(e){$('plErr').textContent=e.message;busy(false)}};
   $('plCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('plVerify').click()});
 }
 function isAlloc(b){return !!b && !b.natId && /تخصيص/.test(b.source||'')}
@@ -609,6 +615,7 @@ function startData(){
   ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();refreshCompanies();fillAdminLists();fillPledgeAdmin();applyPledgeForm();renderAll()},showDbError);
   ROOT.child('companies').on('value',s=>{addedCompanies=s.val()||{};refreshCompanies();fillAdminLists()});
   if(session.role==='admin')ROOT.child('users').on('value',s=>{users=s.val()||{};renderUsers()},showDbError);
+  else ROOT.child('users/'+emailKey(session.email)).on('value',s=>{users[emailKey(session.email)]=s.val()||{}},()=>{});
   ROOT.child('bookings').on('value',s=>{bookings=s.val()||{};renderAll()},showDbError);
   ROOT.child('pledges').on('value',s=>{pledges=s.val()||{};renderAll()});
   ROOT.child('idx/unit').on('value',s=>{idxUnit=s.val()||{};renderAll()});
@@ -788,7 +795,7 @@ function renderBookings(){
 function isMine(b){return b.makerEmail?b.makerEmail===session.email:b.maker===session.name}
 function actionsFor(b){const r=session.role;let h=`<button class="btn sec sm" data-act="view" data-bid="${b.bid}">عرض</button> `;
   if(isActive(b)&&(pledgeOn()||pledgeOf(b.bid)))h+=`<button class="btn ${isPledged(b.bid)?'sec':''} sm" data-act="pledge" data-bid="${b.bid}">${isPledged(b.bid)?'التعهد ✓':'التعهد'}</button> `;
-  if(b.status==='pending'&&(r==='checker'||r==='admin')){if(isMine(b)&&r!=='admin')h+=`<span class="muted" style="font-size:12px">لا يمكن اعتماد حجزك</span>`;else h+=`<button class="btn sm" data-act="approve" data-bid="${b.bid}">اعتماد</button> <button class="btn danger sm" data-act="reject" data-bid="${b.bid}">رفض</button>`}
+  if(b.status==='pending'&&(r==='checker'||r==='admin')){if(isMine(b)&&r!=='admin')h+=`<span class="muted" style="font-size:12px">لا يمكن اعتماد حجزك</span>`;else{const gate=pledgeOn()&&config.pledge.requireForApproval&&!isPledged(b.bid)&&!canBypassPledge();h+=`<button class="btn sm" data-act="approve" data-bid="${b.bid}" ${gate?'title="يلزم تأكيد التعهد أولاً" style="opacity:.55"':''}>اعتماد</button> <button class="btn danger sm" data-act="reject" data-bid="${b.bid}">رفض</button>`}}
   if(b.status==='pending'&&(r==='maker'||r==='checker')&&isMine(b))h+=`<button class="btn danger sm" data-act="cancel" data-bid="${b.bid}">إلغاء</button>`;
   if(b.status==='approved'&&r==='admin')h+=`<button class="btn danger sm" data-act="cancel" data-bid="${b.bid}">إلغاء الحجز</button>`;
   return h}
@@ -802,6 +809,7 @@ async function doAction(act,bid){
     <div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
   if(act==='approve'){
     if(isMine(b)&&session.role!=='admin')return toast('لا يمكنك اعتماد حجز أدخلته أنت',true);
+    if(pledgeOn()&&config.pledge.requireForApproval&&!isPledged(bid)&&!canBypassPledge())return toast('لا يمكن الاعتماد قبل تأكيد الإقرار والتعهد من العميل',true);
     const dup=Object.entries(bookings).find(([k,x])=>k!==bid&&isActive(x)&&(x.unitId===b.unitId||(b.natId&&x.natId===b.natId)));
     if(dup)return toast(`لا يمكن الاعتماد: تعارض مع حجز آخر (${dup[1].unitId} / ${dup[1].natId})`,true);
     const m=MASTER_BY_ID[b.unitId];if(!m||m.district!==b.district||m.block!==b.block||m.model!==b.model||(m.company!==UNALLOC&&m.company!==b.company))return toast('بيانات الحجز تختلف عن الجدول الرئيسي — راجع تقرير التدقيق',true);
@@ -938,14 +946,16 @@ async function fixIdx(){ // rebuild uniqueness index from active bookings (admin
 $('excExport').onclick=()=>csv('تقرير_التدقيق',['نوع الاستثناء','الوحدة','العميل','الهوية','الشركة','الحالة','المُدخل','المشكلة'],excRows);
 
 /* ===== Admin ===== */
-function fillPledgeAdmin(){if(!$('plText'))return;const pc=config.pledge||{};if(document.activeElement!==$('plText'))$('plText').value=pc.text||DEFAULT_PLEDGE;$('plEnabled').checked=!!pc.enabled;$('plVer').textContent=pc.version?`(الإصدار ${pc.version}${pc.updatedAt?' · '+fmtTime(pc.updatedAt):''})`:'(لم يُحفظ بعد)'}
+function fillPledgeAdmin(){if(!$('plText'))return;const pc=config.pledge||{};if(document.activeElement!==$('plText'))$('plText').value=pc.text||DEFAULT_PLEDGE;$('plEnabled').checked=!!pc.enabled;$('plRequire').checked=!!pc.requireForApproval;if(document.activeElement!==$('plReport'))$('plReport').value=pc.reportEmail||'';$('plVer').textContent=pc.version?`(الإصدار ${pc.version}${pc.updatedAt?' · '+fmtTime(pc.updatedAt):''})`:'(لم يُحفظ بعد)'}
 function applyPledgeForm(){const on=pledgeOn();$('emailReq').style.display=on?'':'none';$('emailHint').style.display=on?'':'none'}
 function fillAdminLists(){if($('listPay'))$('listPay').value=payMethods().join('\n');if($('listCompanies'))$('listCompanies').value=extraCompanies().join('\n');if($('sheetUrl'))$('sheetUrl').value=(config.lists&&config.lists.sheetWebApp)||''}
 function renderUsers(){
-  const rows=Object.entries(users).filter(([k,u])=>u&&u.role).map(([k,u])=>({k,email:u.email||k.replace(/,/g,'.'),name:u.name||'',role:u.role}));
+  const rows=Object.entries(users).filter(([k,u])=>u&&u.role).map(([k,u])=>({k,email:u.email||k.replace(/,/g,'.'),name:u.name||'',role:u.role,bypass:!!u.bypassPledge}));
   if(!rows.some(r=>r.email===SUPER_ADMIN))rows.unshift({k:emailKey(SUPER_ADMIN),email:SUPER_ADMIN,name:'',role:'admin'});
-  $('usersBody').innerHTML=rows.sort((a,b)=>a.email.localeCompare(b.email)).map(r=>`<tr><td class="mono" dir="ltr">${esc(r.email)}</td><td>${esc(r.name)}</td><td>${r.email===SUPER_ADMIN?'مدير رئيسي':esc(ROLE_AR[r.role]||r.role)}</td><td>${r.email===SUPER_ADMIN||r.email===session.email?'':`<button class="btn danger sm" data-del="${esc(r.k)}">حذف</button>`}</td></tr>`).join('');
+  $('usersBody').innerHTML=rows.sort((a,b)=>a.email.localeCompare(b.email)).map(r=>`<tr><td class="mono" dir="ltr">${esc(r.email)}</td><td>${esc(r.name)}</td><td>${r.email===SUPER_ADMIN?'مدير رئيسي':esc(ROLE_AR[r.role]||r.role)}</td><td style="text-align:center"><input type="checkbox" data-bypass="${esc(r.k)}" ${r.bypass?'checked':''} ${r.email===SUPER_ADMIN?'disabled checked':''}></td><td>${r.email===SUPER_ADMIN||r.email===session.email?'':`<button class="btn danger sm" data-del="${esc(r.k)}">حذف</button>`}</td></tr>`).join('');
 }
+$('usersBody').addEventListener('change',async e=>{const k=e.target&&e.target.dataset&&e.target.dataset.bypass;if(!k)return;
+  const on=e.target.checked;try{await ROOT.child('users/'+k+'/bypassPledge').set(on);log('صلاحية الاعتماد بدون تعهد','','',`${(users[k]&&users[k].email)||k}: ${on?'مُنحت':'سُحبت'}`);toast(on?'يستطيع الاعتماد بدون تعهد':'يلزمه التعهد قبل الاعتماد')}catch(err){toast('تعذر الحفظ: '+err.message,true);e.target.checked=!on}});
 $('usersBody').addEventListener('click',async e=>{const k=e.target&&e.target.dataset&&e.target.dataset.del;if(!k)return;
   const u=users[k]||{};const em=u.email||k.replace(/,/g,'.');
   if(!confirm(`حذف صلاحية ${em}؟ بيُمنع من الدخول فوراً.`))return;
@@ -958,8 +968,9 @@ $('addUser').onclick=async()=>{const em=$('usrEmail').value.trim().toLowerCase()
   log(old.role?'تحديث مستخدم':'إضافة مستخدم','','',`${em} · ${ROLE_AR[role]}`);$('usrEmail').value='';$('usrName').value='';toast('تم الحفظ')};
 $('savePledge').onclick=async()=>{const text=$('plText').value.trim();if(text.length<20)return toast('نص التعهد قصير جداً',true);const old=config.pledge||{};
   const version=(old.text||'')===text?(old.version||1):((old.version||0)+1);
-  await ROOT.child('config/pledge').set({enabled:$('plEnabled').checked,text,version,updatedAt:Date.now(),updatedBy:session.email});
-  log('إعدادات التعهد','','',`${$('plEnabled').checked?'مفعّل':'موقوف'} · الإصدار ${version}`);toast('تم حفظ إعدادات التعهد')};
+  const rep=$('plReport').value.trim().toLowerCase();if(rep&&!validEmail(rep))return toast('بريد التقرير غير صحيح',true);
+  await ROOT.child('config/pledge').set({enabled:$('plEnabled').checked,requireForApproval:$('plRequire').checked,reportEmail:rep,text,version,updatedAt:Date.now(),updatedBy:session.email});
+  log('إعدادات التعهد','','',`${$('plEnabled').checked?'مفعّل':'موقوف'} · ${$('plRequire').checked?'الاعتماد مشروط بالتعهد':'الاعتماد غير مشروط'} · الإصدار ${version}`);toast('تم حفظ إعدادات التعهد')};
 $('saveLists').onclick=async()=>{const pay=$('listPay').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!pay.length)return toast('أضف طريقة دفع واحدة على الأقل',true);
   const comps=[...new Set($('listCompanies').value.split('\n').map(s=>s.trim()).filter(c=>c&&!BASE_COMPANIES.includes(c)&&c!==UNALLOC))];
   const removed=extraCompanies().filter(c=>!comps.includes(c)&&Object.values(bookings).some(b=>isActive(b)&&b.company===c));
