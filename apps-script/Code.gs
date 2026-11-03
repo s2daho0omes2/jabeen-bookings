@@ -133,6 +133,25 @@ function pledgeSend_(emp, bid, booking, cfg, existing) {
   return { ok: true, expiresAt: exp };
 }
 
+var PLEDGE_CITY = 'ينبع الصناعية';
+/** يملأ الحقول بين قوسين في نص التعهد من بيانات الحجز */
+function fillPledge_(t, b) {
+  var m = { 'الاسم الكامل': b.name, 'رقم الهوية': b.natId, 'رقم الوحدة': b.unitId, 'النموذج': b.model, 'اسم الحي': b.district, 'المدينة': PLEDGE_CITY, 'السعر': fmtNum_(b.price) };
+  return String(t || '').replace(/\(([^()]+)\)/g, function (x, k) { k = k.trim(); return m[k] != null && m[k] !== '' ? String(m[k]) : x; });
+}
+/** يثبّت نص التعهد المعتمد في الإعدادات إن لم يُحفظ نص بعد (يُشغَّل مرة من المحرر) */
+function seedPledgeText() {
+  var cfg = fbGet_(FIREBASE + '/config/pledge') || {};
+  if (cfg.text) return 'already set (v' + cfg.version + ')';
+  var text = 'أُقرّ أنا المواطن (الاسم الكامل)، حامل الهوية الوطنية رقم (رقم الهوية)، بأنني أتقدم بطلب حجز الوحدة السكنية رقم (رقم الوحدة)، نموذج (النموذج)، الواقعة في حي (اسم الحي) بمدينة (المدينة)، بسعر مبدئي قدره (السعر) ريال سعودي.
+
+وأُقرّ بعلمي وقبولي بأن بيانات الوحدة وسعرها مبدئية وقابلة للتعديل حتى إبرام عقد البيع، وأن البيانات والسعر النهائيين هما ما يتم الاتفاق عليه في العقد.
+
+كما أُقرّ بأنه لم يسبق لي تملّك أي وحدة سكنية والإفراغ باسمي من الهيئة الملكية في أيٍّ من مدنها، وأتعهد بصحة البيانات والإقرارات المقدمة مني، وأتحمل مسؤولية صحتها.';
+  fbWrite_(FIREBASE + '/config/pledge', { enabled: false, requireForApproval: false, reportEmail: '', text: text, version: 1, updatedAt: Date.now(), updatedBy: 'system' });
+  return 'seeded v1';
+}
+
 /** سياق الحجز الذي يرتبط به الرمز: أي تغيير فيه يُبطل الرمز */
 function pledgeCtx_(b) { return [b.unitId, b.price, b.payMethod, b.natId, b.name].map(function (v) { return String(v == null ? '' : v); }).join('|'); }
 
@@ -158,7 +177,7 @@ function pledgeVerify_(emp, bid, booking, cfg, code, recited) {
   fbWrite_(SECRETS + '/' + bid, { used: true, usedAt: now }, 'patch');
   var rec = { state: 'confirmed', statement: 'تم تأكيد الإقرار والتعهد بواسطة الموظف بالرمز المرسل إلى بريد العميل',
     email: email, name: booking.name || '', natId: booking.natId || '', refNo: booking.refNo || '', unitId: booking.unitId, district: booking.district || '', block: booking.block || '', model: booking.model || '', price: booking.price || '', company: booking.company || '',
-    payMethod: booking.payMethod || '', version: version, textHash: textHash, text: cfg.text, sentAt: sec.sentAt, confirmedAt: now, by: emp.name, byEmail: emp.email, byRole: emp.role, recited: true, recitedBy: emp.email };
+    payMethod: booking.payMethod || '', version: version, textHash: textHash, text: fillPledge_(cfg.text, booking), template: cfg.text, sentAt: sec.sentAt, confirmedAt: now, by: emp.name, byEmail: emp.email, byRole: emp.role, recited: true, recitedBy: emp.email };
   fbWrite_(FIREBASE + '/pledges/' + bid, rec);
   audit_(emp, 'تأكيد الإقرار والتعهد', booking.unitId, bid, (booking.refNo || '') + ' — ' + email);
   try { sendConfirmMail_(booking, cfg, email, now); } catch (e) { audit_(emp, 'تعذر إرسال رسالة التأكيد', booking.unitId, bid, String(e)); }
@@ -177,7 +196,7 @@ function sendPledgeMail_(b, cfg, email, code, exp) {
   var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
     '<p>تم تسجيل حجز باسمك برقم <b>' + escH_(b.refNo) + '</b>. هذه بيانات الوحدة المحجوزة:</p>' + bookingTable_(b) +
     '<h3 style="margin:22px 0 6px">نص الإقرار والتعهد (الإصدار ' + escH_(cfg.version || 1) + ')</h3>' +
-    '<div style="white-space:pre-wrap;background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:14px">' + escH_(cfg.text) + '</div>' +
+    '<div style="white-space:pre-wrap;background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:14px">' + escH_(fillPledge_(cfg.text, b)) + '</div>' +
     '<h3 style="margin:22px 0 6px">رمز التحقق</h3>' +
     '<div style="font-size:34px;letter-spacing:10px;font-weight:bold;text-align:center;direction:ltr;background:#eef6f1;border:2px dashed #1f4d3a;border-radius:12px;padding:12px">' + code + '</div>' +
     '<p style="color:#b3261e;font-weight:bold">الرمز صالح حتى ' + tsAr_(exp) + ' (5 دقائق) ويُستخدم مرة واحدة.</p>' +
@@ -189,7 +208,7 @@ function sendConfirmMail_(b, cfg, email, when) {
   var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
     '<p>تم تسجيل موافقتك على الإقرار والتعهد الخاص بالحجز رقم <b>' + escH_(b.refNo) + '</b> بتاريخ ' + tsAr_(when) + '.</p>' + bookingTable_(b) +
     '<h3 style="margin:22px 0 6px">نسخة الإقرار والتعهد المؤكَّد (الإصدار ' + escH_(cfg.version || 1) + ')</h3>' +
-    '<div style="white-space:pre-wrap;background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:14px">' + escH_(cfg.text) + '</div>' +
+    '<div style="white-space:pre-wrap;background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:14px">' + escH_(fillPledge_(cfg.text, b)) + '</div>' +
     '<p>احتفظ بهذه الرسالة كمرجع.</p>';
   sendMail_(email, 'تأكيد الإقرار والتعهد — حجز ' + (b.refNo || ''), mailShell_('تم تأكيد الإقرار والتعهد — مشروع جبين السكني', inner));
 }
