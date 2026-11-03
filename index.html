@@ -397,7 +397,7 @@ tr:hover td{background:var(--hover)}
         <label class="switch" style="margin:0 0 14px"><input type="checkbox" id="plRequire"><span>لا يُعتمد الحجز نهائياً إلا بعد تأكيد التعهد</span></label>
         <div class="muted" style="font-size:12px;margin:-8px 0 12px">الاستثناء يُمنح لحسابات محددة من عمود «اعتماد بدون تعهد» في جدول المستخدمين أعلاه. المدير الرئيسي مستثنى دائماً.</div>
         <div class="f"><label>بريد الإدارة لتقرير التعهدات اليومي</label><input id="plReport" type="email" dir="ltr" placeholder="management@example.com"><div class="muted" style="font-size:12px;margin-top:4px">يصله كل صباح: تعهدات لم تُؤكَّد خلال 48 ساعة، رموز خاطئة متكررة، وإجراءات خارج ساعات العمل.</div></div>
-        <div class="f"><label>نص الإقرار والتعهد <span class="muted" id="plVer"></span></label><textarea id="plText" rows="12" style="line-height:1.8"></textarea><div class="muted" style="font-size:12px;margin-top:4px">الحقول بين قوسين تُملأ تلقائياً من بيانات الحجز: (الاسم الكامل) (رقم الهوية) (رقم الوحدة) (النموذج) (اسم الحي) (المدينة) (السعر).</div></div>
+        <div class="f"><label>نص الإقرار والتعهد <span class="muted" id="plVer"></span></label><textarea id="plText" rows="12" style="line-height:1.8"></textarea><div class="muted" style="font-size:12px;margin-top:4px">الحقول بين قوسين تُملأ تلقائياً من بيانات الحجز: (الاسم الكامل) (رقم الهوية) (رقم الجوال) (رقم الوحدة) (النموذج) (اسم الحي) (المدينة) (السعر).</div></div>
         <div class="actions"><button class="btn" id="savePledge">حفظ إعدادات التعهد</button><span class="muted" style="font-size:13px">يحتاج رابط خدمة Apps Script أعلاه، ويجب أن يكون البريد المرسل منه مفعّلاً فيه.</span></div>
       </div>
       <div class="card">
@@ -476,13 +476,13 @@ function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast 
 function isActive(b){return b && (b.status==='pending'||b.status==='approved')}
 /* ===== الإقرار والتعهد ===== */
 let pledges={};
-const DEFAULT_PLEDGE=`أُقرّ أنا المواطن (الاسم الكامل)، حامل الهوية الوطنية رقم (رقم الهوية)، بأنني أتقدم بطلب حجز الوحدة السكنية رقم (رقم الوحدة)، نموذج (النموذج)، الواقعة في حي (اسم الحي) بمدينة (المدينة)، بسعر مبدئي قدره (السعر) ريال سعودي.
+const DEFAULT_PLEDGE=`أُقرّ أنا المواطن (الاسم الكامل)، حامل الهوية الوطنية رقم (رقم الهوية) ورقم جوال (رقم الجوال)، بأنني أتقدم بطلب حجز الوحدة السكنية رقم (رقم الوحدة)، نموذج (النموذج)، الواقعة في حي (اسم الحي) بمدينة (المدينة)، بسعر مبدئي قدره (السعر) ريال سعودي.
 
 وأُقرّ بعلمي وقبولي بأن بيانات الوحدة وسعرها مبدئية وقابلة للتعديل حتى إبرام عقد البيع، وأن البيانات والسعر النهائيين هما ما يتم الاتفاق عليه في العقد.
 
 كما أُقرّ بأنه لم يسبق لي تملّك أي وحدة سكنية والإفراغ باسمي من الهيئة الملكية في أيٍّ من مدنها، وأتعهد بصحة البيانات والإقرارات المقدمة مني، وأتحمل مسؤولية صحتها.`;
 const PLEDGE_CITY='ينبع الصناعية';
-function fillPledge(t,b){if(!b)return t;const m={'الاسم الكامل':b.name,'رقم الهوية':b.natId,'رقم الوحدة':b.unitId,'النموذج':b.model,'اسم الحي':b.district,'المدينة':PLEDGE_CITY,'السعر':fmt(b.price)};return String(t||'').replace(/\(([^()]+)\)/g,(x,k)=>m[k.trim()]!=null&&m[k.trim()]!==''?String(m[k.trim()]):x)}
+function fillPledge(t,b){if(!b)return t;const m={'الاسم الكامل':b.name,'رقم الهوية':b.natId,'رقم الجوال':b.phone,'رقم الوحدة':b.unitId,'النموذج':b.model,'اسم الحي':b.district,'المدينة':PLEDGE_CITY,'السعر':fmt(b.price)};return String(t||'').replace(/\(([^()]+)\)/g,(x,k)=>m[k.trim()]!=null&&m[k.trim()]!==''?String(m[k.trim()]):x)}
 const pledgeOn=()=>!!(config.pledge&&config.pledge.enabled);
 const pledgeOf=bid=>pledges[bid]||null;
 function canBypassPledge(){if(session.email===SUPER_ADMIN)return true;const u=users[emailKey(session.email)];return !!(u&&u.bypassPledge)}
