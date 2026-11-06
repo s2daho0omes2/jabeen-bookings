@@ -270,7 +270,7 @@ function signRemindMail_(cfg, b, remaining, deadline, emp) {
     (remaining === 0 ? 'اليوم آخر يوم في مهلة التوقيع' : 'المتبقي من المهلة: ' + daysAr_(remaining)) + '<div style="font-size:14px;font-weight:normal;margin-top:4px">تنتهي المهلة في ' + escH_(deadline) + '</div></div>' +
     '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold;margin-top:14px">في حال عدم التوقيع خلال المدة المتبقية سيتم إلغاء الحجز وإتاحة الوحدة لغيرك.</p>' + bookingTable_(b) +
     '<p>لتحديد موعد التوقيع تواصل مع موظف الحجز' + (b.maker ? ' <b>' + escH_(b.maker) + '</b>' : '') + ' أو بالرد على هذه الرسالة.</p>';
-  return sendLogged_(b.bid, 'signRemind', b.email, 'تذكير: توقيع عرض السعر والعقد — حجز ' + (b.refNo || '') + ' (متبقٍ ' + remaining + ' يوم)', mailShell_('تذكير بتوقيع عرض السعر والعقد — مشروع جبين السكني', inner), emp);
+  return sendLogged_(b.bid, 'signRemind', b.email, 'تذكير: توقيع عرض السعر والعقد — حجز ' + (b.refNo || '') + ' (المتبقي ' + daysAr_(remaining) + ')', mailShell_('تذكير بتوقيع عرض السعر والعقد — مشروع جبين السكني', inner), emp);
 }
 /** من الموقع فور الحدث: {action:'notify', event:'welcome'|'sakani', bid, idToken} */
 function notifyRoute_(body) {
