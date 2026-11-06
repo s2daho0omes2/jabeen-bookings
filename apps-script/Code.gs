@@ -44,7 +44,7 @@ function doPost(e) {
   var body = null;
   try { body = JSON.parse((e && e.postData && e.postData.contents) || ''); } catch (err) { body = null; }
   if (body && body.action) {
-    try { return respond_(pledgeRoute_(body)); }
+    try { return respond_(body.action === 'notify' ? notifyRoute_(body) : pledgeRoute_(body)); }
     catch (err) { return respond_({ ok: false, error: String(err.message || err) }); }
   }
   return respond_(syncAll());
@@ -206,6 +206,145 @@ function sendConfirmMail_(b, cfg, email, when) {
     '<div style="white-space:pre-wrap;background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:14px">' + escH_(fillPledge_(cfg.text, b)) + '</div>' +
     '<p>احتفظ بهذه الرسالة كمرجع.</p>';
   sendMail_(email, 'تأكيد الإقرار والتعهد — حجز ' + (b.refNo || ''), mailShell_('تم تأكيد الإقرار والتعهد — مشروع جبين السكني', inner));
+}
+
+/* ---------- الرسائل الآلية (مباركة الحجز، توثيق العقد في سكني، تذكير التوقيع، تذكير الموظفين بسكني) ----------
+ * كل رسالة لها مفتاح تفعيل في config/mail (الإعدادات في الموقع) وكلها موقوفة افتراضياً.
+ * كل إرسال يُسجَّل في mailLog/{bid} ويُحتسب في الحد اليومي MAIL_DAILY_CAP (الخطة المجانية في Resend: 100/يوم).
+ */
+var MAIL_DAILY_CAP = 90;
+var SITE_URL = 'https://jabeen-bookings.online';
+var DAY_MS = 24 * 3600 * 1000;
+function mailCfg_() { return fbGet_(FIREBASE + '/config/mail') || {}; }
+function riyadhDate_(ms) { return Utilities.formatDate(new Date(ms || Date.now()), 'Asia/Riyadh', 'yyyy-MM-dd'); }
+function bookingDate_(b) { return (b.bookingDate && /^\d{4}-\d{2}-\d{2}$/.test(b.bookingDate)) ? b.bookingDate : (b.createdAt ? riyadhDate_(b.createdAt) : ''); }
+function daysSince_(ds) { if (!ds) return null; return Math.max(0, Math.round((Date.parse(riyadhDate_() + 'T00:00:00Z') - Date.parse(ds + 'T00:00:00Z')) / DAY_MS)); }
+function addDays_(ds, n) { return Utilities.formatDate(new Date(Date.parse(ds + 'T00:00:00Z') + n * DAY_MS), 'UTC', 'yyyy-MM-dd'); }
+function daysAr_(n) { if (n === 0) return 'اليوم'; if (n === 1) return 'يوم واحد'; if (n === 2) return 'يومين'; if (n <= 10) return n + ' أيام'; return n + ' يوماً'; }
+function isActive_(b) { return !!b && (b.status === 'pending' || b.status === 'approved'); }
+function validEmail_(e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(e || '')); }
+function quotaTake_() {
+  var d = riyadhDate_(), n = Number(fbGet_(FIREBASE + '/mailQuota/' + d) || 0);
+  if (n >= MAIL_DAILY_CAP) return false;
+  fbWrite_(FIREBASE + '/mailQuota/' + d, n + 1); return true;
+}
+function logOf_(log, bid) { var l = (log && log[bid]) || {}; return Object.keys(l).map(function (k) { return l[k]; }); }
+function sentAt_(entries, type) { var t = 0; entries.forEach(function (e) { if (e && e.type === type && e.status === 'sent' && e.at > t) t = e.at; }); return t; }
+/** يرسل ويسجّل. يعيد 'sent' | 'quota' | 'failed' */
+function sendLogged_(bid, type, to, subject, html, emp) {
+  if (!quotaTake_()) return 'quota';
+  var rec = { at: Date.now(), type: type, to: to, subject: subject, status: 'sent', by: emp ? emp.name : 'المؤقّت' };
+  try { sendMail_(to, subject, html); }
+  catch (e) { rec.status = 'failed'; rec.error = String(e.message || e).slice(0, 200); }
+  try { fbPush_(FIREBASE + '/mailLog/' + bid, rec); } catch (e) {}
+  return rec.status;
+}
+function signDeadline_(cfg, b) { var ds = bookingDate_(b), n = Number(cfg.signDays || 0); return (ds && n > 0) ? addDays_(ds, n) : ''; }
+function nextStepsHtml_(cfg, b) {
+  var dl = signDeadline_(cfg, b);
+  return '<h3 style="margin:22px 0 6px">الخطوات التالية</h3><ol style="padding-right:20px;margin:0">' +
+    '<li>التسجيل في منصة <b>سكني</b> وربط الحجز بحسابك (يتولى موظف الحجز تسجيله ويصلك إشعار).</li>' +
+    '<li>توقيع <b>عرض السعر</b> ثم <b>عقد البيع</b>' + (dl ? ' خلال <b>' + escH_(cfg.signDays) + ' يوماً</b> من تاريخ الحجز (حتى <b>' + escH_(dl) + '</b>)' : '') + '.</li>' +
+    '<li>توثيق العقد عبر منصة سكني بعد توقيعه.</li></ol>' +
+    (dl ? '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold">في حال عدم توقيع عرض السعر والعقد خلال المهلة، يُلغى الحجز وتُتاح الوحدة لغيرك.</p>' : '');
+}
+function welcomeMail_(cfg, b, emp) {
+  var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
+    '<p style="font-size:17px;font-weight:bold;color:#1f4d3a">مبارك لك حجز وحدتك السكنية في مشروع جبين 🎉</p>' +
+    '<p>تم تسجيل حجزك برقم <b>' + escH_(b.refNo) + '</b>' + (b.status === 'pending' ? ' (حجز مبدئي بانتظار الاعتماد)' : '') + '. هذه بيانات الوحدة:</p>' + bookingTable_(b) + nextStepsHtml_(cfg, b) +
+    '<p>للاستفسار تواصل مع موظف الحجز' + (b.maker ? ' <b>' + escH_(b.maker) + '</b>' : '') + ' أو بالرد على هذه الرسالة.</p>';
+  return sendLogged_(b.bid, 'welcome', b.email, 'مبارك حجزك — حجز ' + (b.refNo || ''), mailShell_('مبارك الحجز — مشروع جبين السكني', inner), emp);
+}
+function contractDocMail_(cfg, b, emp) {
+  var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
+    '<p>تم تسجيل حجزك رقم <b>' + escH_(b.refNo) + '</b> للوحدة <b>' + escH_(b.unitId) + '</b> في منصة <b>سكني</b>.</p>' +
+    '<p>الخطوة التالية: الدخول إلى حسابك في منصة سكني، ومراجعة بيانات الحجز، ثم <b>توثيق العقد</b> بعد توقيعه مع موظف الحجز.</p>' + bookingTable_(b) +
+    '<p>إذا واجهت أي صعوبة في سكني، تواصل مع موظف الحجز' + (b.maker ? ' <b>' + escH_(b.maker) + '</b>' : '') + '.</p>';
+  return sendLogged_(b.bid, 'contractDoc', b.email, 'توثيق العقد عبر منصة سكني — حجز ' + (b.refNo || ''), mailShell_('حجزك مسجَّل في سكني — مشروع جبين السكني', inner), emp);
+}
+function signRemindMail_(cfg, b, remaining, deadline, emp) {
+  var urgent = remaining <= 2;
+  var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
+    '<p>نذكّرك بضرورة <b>توقيع عرض السعر وتوقيع عقد البيع</b> للوحدة <b>' + escH_(b.unitId) + '</b> (حجز رقم <b>' + escH_(b.refNo) + '</b>).</p>' +
+    '<div style="font-size:20px;font-weight:bold;text-align:center;background:' + (urgent ? '#fdecea;color:#b3261e;border:2px solid #b3261e' : '#eef6f1;color:#1f4d3a;border:2px dashed #1f4d3a') + ';border-radius:12px;padding:12px">' +
+    (remaining === 0 ? 'اليوم آخر يوم في مهلة التوقيع' : 'المتبقي من المهلة: ' + daysAr_(remaining)) + '<div style="font-size:14px;font-weight:normal;margin-top:4px">تنتهي المهلة في ' + escH_(deadline) + '</div></div>' +
+    '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold;margin-top:14px">في حال عدم التوقيع خلال المدة المتبقية سيتم إلغاء الحجز وإتاحة الوحدة لغيرك.</p>' + bookingTable_(b) +
+    '<p>لتحديد موعد التوقيع تواصل مع موظف الحجز' + (b.maker ? ' <b>' + escH_(b.maker) + '</b>' : '') + ' أو بالرد على هذه الرسالة.</p>';
+  return sendLogged_(b.bid, 'signRemind', b.email, 'تذكير: توقيع عرض السعر والعقد — حجز ' + (b.refNo || '') + ' (متبقٍ ' + remaining + ' يوم)', mailShell_('تذكير بتوقيع عرض السعر والعقد — مشروع جبين السكني', inner), emp);
+}
+/** من الموقع فور الحدث: {action:'notify', event:'welcome'|'sakani', bid, idToken} */
+function notifyRoute_(body) {
+  var emp = employee_(body.idToken);
+  var bid = String(body.bid || '').replace(/[^A-Za-z0-9_-]/g, '');
+  var b = fbGet_(FIREBASE + '/bookings/' + bid);
+  if (!b || !isActive_(b)) throw new Error('الحجز غير نشط');
+  b.bid = bid;
+  var cfg = mailCfg_(), entries = logOf_({ x: fbGet_(FIREBASE + '/mailLog/' + bid) }, 'x');
+  if (!validEmail_(b.email)) return { ok: true, sent: false, reason: 'لا يوجد بريد للعميل' };
+  if (body.event === 'welcome') {
+    if (!cfg.welcome) return { ok: true, sent: false, reason: 'الرسالة موقوفة' };
+    if (sentAt_(entries, 'welcome')) return { ok: true, sent: false, reason: 'أُرسلت سابقاً' };
+    return { ok: true, sent: welcomeMail_(cfg, b, emp) === 'sent' };
+  }
+  if (body.event === 'sakani') {
+    if (!cfg.contractDoc) return { ok: true, sent: false, reason: 'الرسالة موقوفة' };
+    if (sentAt_(entries, 'contractDoc')) return { ok: true, sent: false, reason: 'أُرسلت سابقاً' };
+    return { ok: true, sent: contractDocMail_(cfg, b, emp) === 'sent' };
+  }
+  throw new Error('حدث غير معروف');
+}
+/** شغّلها مرة واحدة من المحرر: مؤقّت كل ساعة للرسائل الآلية */
+function setupMailTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'mailScheduler') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('mailScheduler').timeBased().everyHours(1).create();
+  return mailScheduler();
+}
+/** يعمل كل ساعة: يلتقط ما فات (مباركة/سكني)، يرسل تذكيرات التوقيع، ويرسل ملخص سكني لمدخلي الحجوزات مرة يومياً بعد الساعة 9 صباحاً */
+function mailScheduler() {
+  var cfg = mailCfg_();
+  if (!cfg.welcome && !cfg.contractDoc && !cfg.signRemind && !cfg.sakaniStaff) return { ok: true, skipped: 'all off' };
+  var bookings = fbGet_(FIREBASE + '/bookings') || {}, customers = fbGet_(FIREBASE + '/customers') || {}, log = fbGet_(FIREBASE + '/mailLog') || {};
+  var since = cfg.since || {}, out = { welcome: 0, contractDoc: 0, signRemind: 0, staff: 0, quota: false };
+  var h = riyadhHour_(Date.now()), quiet = h < 8 || h >= 21; // لا رسائل للعملاء ليلاً
+  var waitingSakani = {};
+  Object.keys(bookings).forEach(function (bid) {
+    var b = bookings[bid]; if (!isActive_(b)) return; b.bid = bid;
+    var cust = customers[b.natId] || {}, sak = cust.sakani && cust.sakani[bid], signed = cust.signed && cust.signed[bid];
+    if (!sak) { var mk = String(b.makerEmail || '').toLowerCase(); if (validEmail_(mk)) (waitingSakani[mk] = waitingSakani[mk] || []).push(b); }
+    if (quiet || out.quota || !validEmail_(b.email)) return;
+    var entries = logOf_(log, bid), r;
+    if (cfg.welcome && b.createdAt >= (since.welcome || 0) && !sentAt_(entries, 'welcome')) { r = welcomeMail_(cfg, b); if (r === 'quota') out.quota = true; else if (r === 'sent') out.welcome++; }
+    if (cfg.contractDoc && sak && sak.at >= (since.contractDoc || 0) && !sentAt_(entries, 'contractDoc')) { r = contractDocMail_(cfg, b); if (r === 'quota') out.quota = true; else if (r === 'sent') out.contractDoc++; }
+    if (cfg.signRemind && !signed && Number(cfg.signDays) > 0) {
+      var ds = bookingDate_(b), passed = daysSince_(ds), remaining = Number(cfg.signDays) - passed, deadline = signDeadline_(cfg, b);
+      var before = Number(cfg.remindBefore || 7), every = Math.max(1, Number(cfg.remindEvery || 3)), last = sentAt_(entries, 'signRemind');
+      if (remaining >= 0 && remaining <= before && (!last || Date.now() - last >= every * DAY_MS - 3600 * 1000)) { r = signRemindMail_(cfg, b, remaining, deadline); if (r === 'quota') out.quota = true; else if (r === 'sent') out.signRemind++; }
+    }
+  });
+  // ملخص يومي لكل مُدخل: عملاؤه الذين لم يُسجَّلوا في سكني
+  if (cfg.sakaniStaff && h >= 9 && !out.quota) {
+    var staffLog = log._staff || {}, today = riyadhDate_();
+    var sentToday = Object.keys(staffLog).some(function (k) { return staffLog[k] && staffLog[k].status === 'sent' && riyadhDate_(staffLog[k].at) === today; });
+    if (!sentToday) Object.keys(waitingSakani).forEach(function (mk) {
+      var list = waitingSakani[mk].sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+      var rows = list.map(function (b) { return '<tr>' + [b.refNo || '', b.unitId, b.name || '', b.natId || '', b.phone || '', bookingDate_(b), daysAr_(daysSince_(bookingDate_(b)) || 0), STATUS_AR[b.status] || b.status].map(function (c) { return '<td style="border:1px solid #ddd;padding:5px 8px">' + escH_(c) + '</td>'; }).join('') + '</tr>'; }).join('');
+      var inner = '<p>لديك <b>' + list.length + '</b> ' + (list.length === 1 ? 'حجز نشط لم يُسجَّل' : 'حجوزات نشطة لم تُسجَّل') + ' بعد في منصة سكني:</p>' +
+        '<table dir="rtl" style="border-collapse:collapse;font-size:13px;width:100%"><tr>' + ['كود الحجز', 'الوحدة', 'العميل', 'الهوية', 'الجوال', 'تاريخ الحجز', 'منذ', 'الحالة'].map(function (x) { return '<th style="border:1px solid #ddd;padding:5px 8px;background:#f3f6f4">' + x + '</th>'; }).join('') + '</tr>' + rows + '</table>' +
+        '<p style="margin-top:16px">بعد تسجيل كل حجز في سكني، افتح بطاقة العميل في <a href="' + SITE_URL + '">نظام الحجوزات</a> (تبويب العملاء) واضغط «تم عكس الحجز في سكني ✓» ليتوقف هذا التذكير ويصل العميل إشعار توثيق العقد.</p>';
+      var st = sendLogged_('_staff', 'sakaniStaff', mk, 'تذكير: ' + list.length + ' من عملائك بانتظار التسجيل في سكني', mailShell_('تذكير يومي — التسجيل في سكني', inner));
+      if (st === 'quota') out.quota = true; else if (st === 'sent') out.staff++;
+    });
+  }
+  if (out.quota) audit_(null, 'توقف الإرسال الآلي', '', '', 'تجاوز الحد اليومي للرسائل (' + MAIL_DAILY_CAP + ') — يُستكمل غداً');
+  return { ok: true, result: out };
+}
+/** اختبار من المحرر: يرسل نماذج الرسائل الأربع إلى بريد المالك دون المساس بأي حجز */
+function testAutoMails() {
+  var cfg = { signDays: 14, remindBefore: 7, remindEvery: 3 };
+  var b = { bid: '_test', refNo: 'JB-TEST-000-00000', unitId: 'AZ-000', district: 'العزيزية', plot: '000', block: '00', model: 'B1', company: 'اختبار', price: 1590000, name: 'عميل تجريبي', natId: '1000000000', bookingDate: riyadhDate_(), email: SUPER_ADMIN, maker: 'موظف تجريبي', status: 'approved', createdAt: Date.now() };
+  var inner = welcomeMail_(cfg, b) + ' / ' + contractDocMail_(cfg, b) + ' / ' + signRemindMail_(cfg, b, 3, addDays_(riyadhDate_(), 3));
+  try { fbDelete_(FIREBASE + '/mailLog/_test'); } catch (e) {}
+  return inner + ' → ' + SUPER_ADMIN;
 }
 
 /* ---------- تقرير الحوكمة اليومي للإدارة ---------- */

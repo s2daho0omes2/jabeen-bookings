@@ -39,6 +39,11 @@
       },
       "customers": {
         "$n": {
+          "signed": {
+            "$bid": {
+              ".write": "auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists() && root.child('jabeenBookings/bookings/' + $bid).exists() && (!newData.exists() || (newData.child('byEmail').val() == auth.token.email.toLowerCase() && newData.child('at').isNumber()))"
+            }
+          },
           "sakani": {
             "$bid": {
               ".write": "auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists() && root.child('jabeenBookings/bookings/' + $bid).exists() && (!newData.exists() || (newData.child('byEmail').val() == auth.token.email.toLowerCase() && newData.child('at').isNumber()))"
