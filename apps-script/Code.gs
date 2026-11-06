@@ -253,8 +253,7 @@ function nextStepsHtml_(cfg, b) {
 function welcomeMail_(cfg, b, emp) {
   var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
     '<p style="font-size:17px;font-weight:bold;color:#1f4d3a">مبارك لك حجز وحدتك السكنية في مشروع جبين 🎉</p>' +
-    '<p>تم تسجيل حجزك برقم <b>' + escH_(b.refNo) + '</b>' + (b.status === 'pending' ? ' (حجز مبدئي بانتظار الاعتماد)' : '') + '. هذه بيانات الوحدة:</p>' + bookingTable_(b) + nextStepsHtml_(cfg, b) +
-    '<p>للاستفسار تواصل مع موظف الحجز' + (b.maker ? ' <b>' + escH_(b.maker) + '</b>' : '') + ' أو بالرد على هذه الرسالة.</p>';
+    '<p>تم تسجيل حجزك برقم <b>' + escH_(b.refNo) + '</b>' + (b.status === 'pending' ? ' (حجز مبدئي بانتظار الاعتماد)' : '') + '. هذه بيانات الوحدة:</p>' + bookingTable_(b) + nextStepsHtml_(cfg, b);
   return sendLogged_(b.bid, 'welcome', b.email, 'مبارك حجزك — حجز ' + (b.refNo || ''), mailShell_('مبارك الحجز — مشروع جبين السكني', inner), emp);
 }
 function contractDocMail_(cfg, b, sak, emp) {
