@@ -7,6 +7,7 @@
 <title>نظام حجوزات مشروع جبين</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="assets/login-bg.jpg">
 <style>
 :root{
   --green:#1f4d3a; --green-dark:#173d2e; --gold:#b8963e; --gold-light:#d9c89a;
@@ -150,6 +151,26 @@ tr:hover td{background:var(--hover)}
 /* login */
 .login{max-width:440px;margin:60px auto}
 .login .f{margin-bottom:14px}
+/* login backdrop: aerial view of Al-Aziziyah district */
+body.lgmode{background:#0f2a1f;background-image:none}
+body.lgmode::before{content:"";position:fixed;inset:0;z-index:-2;background:url(assets/login-bg.jpg) center/cover no-repeat;transform:scale(1.04);animation:lgZoom 40s ease-in-out infinite alternate}
+body.lgmode::after{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(12,36,26,.82) 0%,rgba(12,36,26,.42) 40%,rgba(12,36,26,.55) 70%,rgba(12,36,26,.9) 100%)}
+@keyframes lgZoom{from{transform:scale(1.04)}to{transform:scale(1.12)}}
+@media (prefers-reduced-motion:reduce){body.lgmode::before{animation:none}}
+body.lgmode .brand h1{color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.45)}
+body.lgmode .brand .sub{color:rgba(255,255,255,.82)}
+body.lgmode .brand .logo{box-shadow:0 6px 24px rgba(0,0,0,.35)}
+body.lgmode .pill{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.28);color:#fff;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+body.lgmode .pill:hover{border-color:var(--gold-light)}
+body.lgmode .login{margin-top:clamp(20px,7vh,72px);background:rgba(255,255,255,.9);backdrop-filter:blur(16px) saturate(1.2);-webkit-backdrop-filter:blur(16px) saturate(1.2);border:1px solid rgba(255,255,255,.65);box-shadow:0 30px 80px rgba(0,0,0,.4);position:relative;overflow:hidden}
+body.lgmode .login::before{content:"";position:absolute;top:0;inset-inline:0;height:5px;background:linear-gradient(90deg,var(--gold),var(--gold-light),var(--gold))}
+.login .lgtag{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--gold);letter-spacing:.2px;margin-bottom:8px}
+.login .lgtag::before{content:"";width:22px;height:2px;background:var(--gold);border-radius:2px}
+.lgfoot{display:none;position:fixed;bottom:14px;inset-inline:0;text-align:center;color:rgba(255,255,255,.72);font-size:13px;font-weight:700;text-shadow:0 1px 8px rgba(0,0,0,.6);pointer-events:none}
+body.lgmode .lgfoot{display:block}
+:root[data-theme="dark"] body.lgmode .login{background:rgba(22,30,26,.86);border-color:rgba(255,255,255,.12)}
+:root[data-theme="dark"] body.lgmode .login h2{color:var(--green)}
+:root[data-theme="dark"] body.lgmode::after{background:linear-gradient(180deg,rgba(8,14,11,.86) 0%,rgba(8,14,11,.55) 40%,rgba(8,14,11,.65) 70%,rgba(8,14,11,.94) 100%)}
 
 /* modal */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
@@ -168,7 +189,7 @@ tr:hover td{background:var(--hover)}
 @media print{.topbar,.tabs,.toolbar,.actions,.btn{display:none!important}.card{box-shadow:none;border:1px solid #ccc}}
 </style>
 </head>
-<body>
+<body class="lgmode">
 <div class="wrap">
   <div class="topbar">
     <div class="brand">
@@ -186,6 +207,7 @@ tr:hover td{background:var(--hover)}
 
   <!-- LOGIN -->
   <div id="loginView" class="card login">
+    <div class="lgtag">مشروع جبين · حي العزيزية · ينبع الصناعية</div>
     <h2>الدخول</h2>
     <div id="lgStep1">
       <div class="hint">اكتب بريدك المسجّل وبيوصلك رابط دخول صالح لمرة واحدة. الدخول ينتهي عند تحديث الصفحة أو إغلاقها، أو بعد 30 دقيقة بدون نشاط.</div>
@@ -208,6 +230,7 @@ tr:hover td{background:var(--hover)}
     </div>
     <div class="err" id="lgErr"></div>
   </div>
+  <div class="lgfoot">حي العزيزية · مشروع جبين للإسكان · مدينة ينبع الصناعية</div>
 
   <!-- APP -->
   <div id="appView" class="hidden">
@@ -601,7 +624,7 @@ if(auth.isSignInWithEmailLink(location.href)){
 }
 
 function enterApp(){
-  $('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');
+  document.body.classList.remove('lgmode');$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');
   $('rolePill').classList.remove('hidden');$('rolePill').textContent=`${ROLE_AR[session.role]} · ${session.name}`;$('rolePill').title=session.email;
   if(session.role==='admin')$('adminTab').classList.remove('hidden');
   initMap();renderAll();startData();
