@@ -476,10 +476,10 @@ body.lgmode .lgfoot{display:block}
         <h2>الرسائل الآلية</h2>
         <div class="hint">كل رسالة لها مفتاح مستقل، وكلها موقوفة حتى تفعّلها. الإرسال من noreply@jabeen-bookings.online عبر خدمة Apps Script (الحد المجاني 100 رسالة يومياً؛ يتوقف النظام عند 90 ويستكمل في اليوم التالي). كل رسالة تُسجَّل في ملف العميل تحت «سجل الرسائل».</div>
         <label class="switch" style="margin:6px 0 10px"><input type="checkbox" id="mWelcome"><span>مباركة الحجز: للعميل فور تسجيل حجزه</span></label><br>
-        <label class="switch" style="margin:0 0 10px"><input type="checkbox" id="mContract"><span>توثيق العقد في سكني: للعميل بعد ضغط «تم عكس الحجز في سكني ✓»</span></label><br>
-        <label class="switch" style="margin:0 0 10px"><input type="checkbox" id="mSign"><span>تذكير توقيع عرض السعر والعقد: للعميل قبل انتهاء المهلة، مع التنبيه بإلغاء الحجز وإتاحة الوحدة</span></label>
+        <label class="switch" style="margin:0 0 10px"><input type="checkbox" id="mContract"><span>التسجيل في سكني: للعميل بعد ضغط «تم عكس الحجز في سكني ✓»، يخبره ببدء مهلة توقيع عرض السعر وتوثيق العقد</span></label><br>
+        <label class="switch" style="margin:0 0 10px"><input type="checkbox" id="mSign"><span>تذكير توقيع عرض السعر وتوثيق العقد: للعميل قبل انتهاء المهلة (تبدأ من تاريخ التسجيل في سكني)، مع التنبيه بإلغاء الحجز وإتاحة الوحدة</span></label>
         <div class="grid" style="margin:4px 0 12px">
-          <div class="f"><label>مهلة التوقيع (أيام من تاريخ الحجز)</label><input id="mSignDays" type="number" min="1" max="365" inputmode="numeric"></div>
+          <div class="f"><label>مهلة التوقيع والتوثيق (أيام من تاريخ التسجيل في سكني)</label><input id="mSignDays" type="number" min="1" max="365" inputmode="numeric"></div>
           <div class="f"><label>ابدأ التذكير قبل انتهاء المهلة بـ (أيام)</label><input id="mBefore" type="number" min="0" max="365" inputmode="numeric"></div>
           <div class="f"><label>كرّر التذكير كل (أيام)</label><input id="mEvery" type="number" min="1" max="30" inputmode="numeric"></div>
         </div>
@@ -924,11 +924,12 @@ const sakaniOf=(natId,bid)=>(customers[natId]&&customers[natId].sakani&&customer
 const signedOf=(natId,bid)=>(customers[natId]&&customers[natId].signed&&customers[natId].signed[bid])||null;
 let mailLog={};
 const mailCfg=()=>config.mail||{};
-const MAIL_TYPE_AR={welcome:'مباركة الحجز',contractDoc:'توثيق العقد في سكني',signRemind:'تذكير توقيع العرض والعقد',sakaniStaff:'تذكير الموظف بسكني'};
+const MAIL_TYPE_AR={welcome:'مباركة الحجز',contractDoc:'التسجيل في سكني ومهلة التوثيق',signRemind:'تذكير توقيع العرض وتوثيق العقد',sakaniStaff:'تذكير الموظف بسكني'};
 function addDays(ds,n){const d=new Date(ds+'T00:00:00');d.setDate(d.getDate()+n);return ymd(d)}
-function signInfo(b){const n=Number(mailCfg().signDays||0),ds=bDate(b);if(!(n>0)||!ds)return null;const passed=daysSince(ds);return {deadline:addDays(ds,n),remaining:n-passed}}
-function signChip(c){if(!c.active)return '';if(c.signed)return `<span class="sk ok" title="وقّع عرض السعر والعقد ${fmtTime(c.signed.at)} · ${esc(c.signed.by||'')}">العقد موقّع ✓</span>`;const si=signInfo(c.active);
-  if(si&&si.remaining<0)return `<span class="sk late" title="انتهت مهلة التوقيع في ${si.deadline}">انتهت مهلة التوقيع ⚠️</span>`;return `<span class="sk sign" title="بانتظار توقيع عرض السعر والعقد${si?` · متبقٍ ${daysLabel(si.remaining)}`:''}">بانتظار التوقيع 📝</span>`}
+const SIGN_DAYS=()=>Number(mailCfg().signDays||30);
+function signInfo(c){const sak=c.sakani;if(!sak||!sak.at)return null;const ds=ymd(new Date(sak.at)),n=SIGN_DAYS();return {from:ds,deadline:addDays(ds,n),remaining:n-daysSince(ds)}} // المهلة من تاريخ التسجيل في سكني
+function signChip(c){if(!c.active)return '';if(c.signed)return `<span class="sk ok" title="وقّع عرض السعر ووثّق العقد ${fmtTime(c.signed.at)} · ${esc(c.signed.by||'')}">موقّع وموثّق ✓</span>`;const si=signInfo(c);
+  if(si&&si.remaining<0)return `<span class="sk late" title="انتهت مهلة التوقيع والتوثيق في ${si.deadline}">انتهت مهلة التوقيع ⚠️</span>`;return `<span class="sk sign" title="بانتظار توقيع عرض السعر وتوثيق العقد${si?` · متبقٍ ${daysLabel(si.remaining)}`:' · المهلة تبدأ عند التسجيل في سكني'}">بانتظار التوقيع 📝</span>`}
 function notifyMail(event,bid){if(!(config.lists&&config.lists.sheetWebApp))return;pledgeApi({action:'notify',event,bid}).then(r=>{if(r&&r.sent)toast('أُرسلت رسالة للعميل: '+(event==='welcome'?'مباركة الحجز':'توثيق العقد في سكني'))}).catch(()=>{})}
 function daysSince(ds){if(!ds)return null;const d=new Date(ds+'T00:00:00'),n=new Date();n.setHours(0,0,0,0);return Math.max(0,Math.round((n-d)/86400000))}
 function daysLabel(n){if(n==null)return '—';if(n===0)return 'اليوم';if(n===1)return 'يوم واحد';if(n===2)return 'يومان';if(n<=10)return n+' أيام';return n+' يوم'}
@@ -947,7 +948,7 @@ const CUST_STATE={approved:'حجز معتمد',pending:'حجز مبدئي',none:
 function custStateBadge(c){const pl=c.active&&c.active.status==='approved'&&isPledged(c.active.bid);return `<span class="st ${pl?'pledged':c.state}">${pl?'معتمد ومتعهّد':CUST_STATE[c.state]}</span>`}
 ['cSearch','cStatus','cCompany'].forEach(i=>$(i).addEventListener('input',renderCustomers));
 function filteredCustomers(all){const q=$('cSearch').value.trim().toLowerCase(),st=$('cStatus').value,co=$('cCompany').value;
-  const late=c=>{const si=c.active&&signInfo(c.active);return !!(si&&si.remaining<0)};
+  const late=c=>{const si=c.active&&signInfo(c);return !!(si&&si.remaining<0)};
   const okSt=c=>!st||(st==='sakani-wait'?(c.active&&!c.sakani):st==='sakani-ok'?(c.active&&!!c.sakani):st==='sign-wait'?(c.active&&!c.signed):st==='sign-late'?(c.active&&!c.signed&&late(c)):st==='sign-ok'?(c.active&&!!c.signed):c.state===st);
   return all.filter(c=>okSt(c)&&(!co||c.company===co)&&(!q||[c.name,c.natId,c.phone,c.email,c.empNo,...c.list.flatMap(b=>[b.unitId,b.plot,b.refNo])].some(v=>String(v||'').toLowerCase().includes(q)))).sort((a,b)=>b.last-a.last)}
 function renderCustomers(){
@@ -974,8 +975,8 @@ function custModal(natId,keep){
       <div>الحجز النشط</div><div>${a?`<b class="mono">${esc(a.refNo||'')}</b> · الوحدة <b>${esc(a.unitId)}</b> · ${esc(a.district)} · بلوك ${esc(a.block)} · ${esc(a.model)} · ${fmt(a.price)} ر.س`:'<span class="muted">لا يوجد</span>'}</div>
       <div>التعهد</div><div>${a?(pledgeBadge(a.bid,a)||'—')+(isPledged(a.bid)?' · '+fmtTime(pledgeOf(a.bid).confirmedAt):''):'—'}</div>
       ${a?`<div>منذ الحجز</div><div><b>${daysLabel(daysSince(bDate(a)))}</b> <span class="muted">من ${esc(bDate(a))}</span></div><div>سكني</div><div>${c.sakani?`<span class="sk ok">مسجَّل في سكني ✓</span> · ${fmtTime(c.sakani.at)} · بواسطة ${esc(c.sakani.by||'')}`:`<span class="sk wait">بانتظار عكس الحجز في سكني ⏳</span>`}</div>
-      <div>عرض السعر والعقد</div><div>${c.signed?`<span class="sk ok">وقّع العميل عرض السعر والعقد ✓</span> · ${fmtTime(c.signed.at)} · بواسطة ${esc(c.signed.by||'')}`:(()=>{const si=signInfo(a);return (si&&si.remaining<0?`<span class="sk late">انتهت مهلة التوقيع ⚠️</span>`:`<span class="sk sign">بانتظار التوقيع 📝</span>`)+(si?` · ${si.remaining<0?'انتهت المهلة في':'متبقٍ '+daysLabel(si.remaining)+' · تنتهي'} ${si.deadline}`:'')})()}</div>`:''}</div>
-    ${a?`<div class="actions" style="margin-top:4px"><button class="btn sm ${c.sakani?'sec':''}" id="cSakani">${c.sakani?'إلغاء تأكيد سكني':'تم عكس الحجز في سكني ✓'}</button><button class="btn sm ${c.signed?'sec':''}" id="cSigned">${c.signed?'إلغاء تأكيد التوقيع':'العميل وقّع عرض السعر والعقد ✓'}</button><button class="btn sec sm" onclick="doAction('view','${a.bid}')">عرض الحجز</button>${(pledgeOn()||pledgeOf(a.bid))?`<button class="btn sm ${isPledged(a.bid)?'sec':''}" onclick="pledgeModal('${a.bid}')">${isPledged(a.bid)?'التعهد ✓':'التعهد'}</button>`:''}</div>`:''}
+      <div>عرض السعر وتوثيق العقد</div><div>${c.signed?`<span class="sk ok">وقّع العميل عرض السعر ووثّق العقد ✓</span> · ${fmtTime(c.signed.at)} · بواسطة ${esc(c.signed.by||'')}`:(()=>{const si=signInfo(c);return (si&&si.remaining<0?`<span class="sk late">انتهت مهلة التوقيع ⚠️</span>`:`<span class="sk sign">بانتظار التوقيع 📝</span>`)+(si?` · ${si.remaining<0?'انتهت المهلة في':'متبقٍ '+daysLabel(si.remaining)+' · آخر موعد'} ${si.deadline} <span class="muted">(${SIGN_DAYS()} يوماً من التسجيل في سكني ${si.from})</span>`:` · <span class="muted">مهلة ${SIGN_DAYS()} يوماً تبدأ عند التسجيل في سكني</span>`)})()}</div>`:''}</div>
+    ${a?`<div class="actions" style="margin-top:4px"><button class="btn sm ${c.sakani?'sec':''}" id="cSakani">${c.sakani?'إلغاء تأكيد سكني':'تم عكس الحجز في سكني ✓'}</button><button class="btn sm ${c.signed?'sec':''}" id="cSigned">${c.signed?'إلغاء تأكيد التوقيع':'العميل وقّع عرض السعر ووثّق العقد ✓'}</button><button class="btn sec sm" onclick="doAction('view','${a.bid}')">عرض الحجز</button>${(pledgeOn()||pledgeOf(a.bid))?`<button class="btn sm ${isPledged(a.bid)?'sec':''}" onclick="pledgeModal('${a.bid}')">${isPledged(a.bid)?'التعهد ✓':'التعهد'}</button>`:''}</div>`:''}
     <h4>الحجوزات (${c.list.length})</h4>
     <div class="tblwrap"><table><thead><tr><th>كود الحجز</th><th>الوحدة</th><th>الحي</th><th>النموذج</th><th>السعر</th><th>تاريخ الحجز</th><th>منذ</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th></th></tr></thead><tbody>
     ${c.list.map(b=>`<tr><td class="mono"><b>${esc(b.refNo||'')}</b></td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.model)}</td><td>${fmt(b.price)}</td><td>${esc(bDate(b))}</td><td>${daysLabel(daysSince(bDate(b)))}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span>${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:200px">${esc(b.rejectReason)}</div>`:''}</td><td>${esc(b.maker||'')}</td><td>${esc(b.checker||'')}</td><td><button class="btn sec sm" onclick="doAction('view','${b.bid}')">عرض</button></td></tr>`).join('')}</tbody></table></div>
@@ -1004,10 +1005,10 @@ async function toggleSakani(natId,bid){
 }
 async function toggleSigned(natId,bid){
   const b=bookings[bid];if(!b)return;const cur=signedOf(natId,bid);
-  if(cur&&!confirm('إلغاء تأكيد توقيع عرض السعر والعقد لهذا الحجز؟'))return;
+  if(cur&&!confirm('إلغاء تأكيد توقيع عرض السعر وتوثيق العقد لهذا الحجز؟'))return;
   const btn=$('cSigned');if(btn)btn.disabled=true;
   try{const r=ROOT.child('customers/'+natId+'/signed/'+bid);if(cur)await r.remove();else await r.set({at:Date.now(),by:session.name,byEmail:session.email});
-    log(cur?'إلغاء تأكيد توقيع العرض والعقد':'تأكيد توقيع عرض السعر والعقد',b.unitId,bid,`${b.name} — ${b.refNo||''}`);toast(cur?'أُلغي التأكيد — بانتظار التوقيع':'تم تسجيل توقيع العميل ✓')}
+    log(cur?'إلغاء تأكيد التوقيع والتوثيق':'تأكيد توقيع عرض السعر وتوثيق العقد',b.unitId,bid,`${b.name} — ${b.refNo||''}`);toast(cur?'أُلغي التأكيد — بانتظار التوقيع':'تم تسجيل توقيع العميل ✓')}
   catch(e){toast(/permission/i.test(String(e&&e.message))?'ليس لديك صلاحية — يلزم تحديث قواعد قاعدة البيانات':String(e&&e.message||e),true);if($('cSigned'))$('cSigned').disabled=false}
 }
 async function addCustNote(natId){
@@ -1017,8 +1018,8 @@ async function addCustNote(natId){
     log('تحديث على ملف عميل',c&&c.active?c.active.unitId:'',c&&c.active?c.active.bid:'',`${c?c.name:natId} — ${t.slice(0,80)}`);if(el)el.value='';toast('أُضيف التحديث')}
   catch(e){toast(/permission/i.test(String(e&&e.message))?'ليس لديك صلاحية إضافة تحديث — يلزم تحديث قواعد قاعدة البيانات':String(e&&e.message||e),true);if($('cNoteAdd'))$('cNoteAdd').disabled=false}
 }
-$('cExport').onclick=()=>csv('العملاء',['الاسم','الهوية','الجوال','البريد','الشركة','الرقم الوظيفي','الحالة','سكني','توقيع العرض والعقد','كود الحجز النشط','الوحدة','الحي','النموذج','السعر','تاريخ الحجز','أيام منذ الحجز','عدد الحجوزات','عدد التحديثات','آخر تحديث'],
-  filteredCustomers(buildCustomers()).map(c=>[c.name,c.natId,c.phone,c.email,c.company,c.empNo,CUST_STATE[c.state],c.active?(c.sakani?'مسجَّل':'بانتظار التسجيل'):'',c.active?(c.signed?'موقّع':'بانتظار التوقيع'):'',c.active?c.active.refNo:'',c.active?c.active.unitId:'',c.active?c.active.district:'',c.active?c.active.model:'',c.active?c.active.price:'',c.active?bDate(c.active):'',c.active?daysSince(bDate(c.active)):'',c.list.length,c.notes.length,fmtTime(c.last)]));
+$('cExport').onclick=()=>csv('العملاء',['الاسم','الهوية','الجوال','البريد','الشركة','الرقم الوظيفي','الحالة','سكني','توقيع العرض وتوثيق العقد','كود الحجز النشط','الوحدة','الحي','النموذج','السعر','تاريخ الحجز','أيام منذ الحجز','عدد الحجوزات','عدد التحديثات','آخر تحديث'],
+  filteredCustomers(buildCustomers()).map(c=>[c.name,c.natId,c.phone,c.email,c.company,c.empNo,CUST_STATE[c.state],c.active?(c.sakani?'مسجَّل':'بانتظار التسجيل'):'',c.active?(c.signed?'موقّع وموثّق':'بانتظار التوقيع'):'',c.active?c.active.refNo:'',c.active?c.active.unitId:'',c.active?c.active.district:'',c.active?c.active.model:'',c.active?c.active.price:'',c.active?bDate(c.active):'',c.active?daysSince(bDate(c.active)):'',c.list.length,c.notes.length,fmtTime(c.last)]));
 
 /* ===== Units table ===== */
 ['uSearch','uDistrict','uCompany','uModel','uStatus'].forEach(i=>$(i).addEventListener('input',renderUnits));
@@ -1145,12 +1146,12 @@ $('excExport').onclick=()=>csv('تقرير_التدقيق',['نوع الاستث
 /* ===== Admin ===== */
 function fillPledgeAdmin(){if(!$('plText'))return;const pc=config.pledge||{};if(document.activeElement!==$('plText'))$('plText').value=pc.text||DEFAULT_PLEDGE;$('plEnabled').checked=!!pc.enabled;$('plRequire').checked=!!pc.requireForApproval;if(document.activeElement!==$('plReport'))$('plReport').value=pc.reportEmail||'';$('plVer').textContent=pc.version?`(الإصدار ${pc.version}${pc.updatedAt?' · '+fmtTime(pc.updatedAt):''})`:'(لم يُحفظ بعد)'}
 function fillMailAdmin(){if(!$('mWelcome'))return;const m=mailCfg();$('mWelcome').checked=!!m.welcome;$('mContract').checked=!!m.contractDoc;$('mSign').checked=!!m.signRemind;$('mStaff').checked=!!m.sakaniStaff;
-  if(document.activeElement!==$('mSignDays'))$('mSignDays').value=m.signDays||14;if(document.activeElement!==$('mBefore'))$('mBefore').value=m.remindBefore!=null?m.remindBefore:7;if(document.activeElement!==$('mEvery'))$('mEvery').value=m.remindEvery||3;
+  if(document.activeElement!==$('mSignDays'))$('mSignDays').value=m.signDays||30;if(document.activeElement!==$('mBefore'))$('mBefore').value=m.remindBefore!=null?m.remindBefore:7;if(document.activeElement!==$('mEvery'))$('mEvery').value=m.remindEvery||3;
   const on=['welcome','contractDoc','signRemind','sakaniStaff'].filter(k=>m[k]).length;$('mailNote').textContent=on?`${on} من 4 رسائل مفعّلة · آخر حفظ ${fmtTime(m.updatedAt)}`:'كل الرسائل موقوفة حالياً'}
 $('saveMail').onclick=async()=>{const old=mailCfg(),now=Date.now(),since={...(old.since||{})};
   const next={welcome:$('mWelcome').checked,contractDoc:$('mContract').checked,signRemind:$('mSign').checked,sakaniStaff:$('mStaff').checked};
   Object.keys(next).forEach(k=>{if(next[k]&&!old[k])since[k]=now});
-  const signDays=Math.max(1,parseInt($('mSignDays').value,10)||14),remindBefore=Math.max(0,parseInt($('mBefore').value,10)||0),remindEvery=Math.max(1,parseInt($('mEvery').value,10)||3);
+  const signDays=Math.max(1,parseInt($('mSignDays').value,10)||30),remindBefore=Math.max(0,parseInt($('mBefore').value,10)||0),remindEvery=Math.max(1,parseInt($('mEvery').value,10)||3);
   await ROOT.child('config/mail').set({...next,signDays,remindBefore,remindEvery,since,updatedAt:now,updatedBy:session.email});
   log('إعدادات الرسائل الآلية','','',Object.keys(next).map(k=>`${MAIL_TYPE_AR[k]}: ${next[k]?'مفعّل':'موقوف'}`).join(' · ')+` · المهلة ${signDays} يوم`);toast('تم حفظ إعدادات الرسائل')};
 function applyPledgeForm(){const on=pledgeOn();$('emailReq').style.display=on?'':'none';$('emailHint').style.display=on?'':'none'}
