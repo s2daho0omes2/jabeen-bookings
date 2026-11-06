@@ -262,8 +262,7 @@ function contractDocMail_(cfg, b, sak, emp) {
     '<p>تم تسجيل حجزك رقم <b>' + escH_(b.refNo) + '</b> للوحدة <b>' + escH_(b.unitId) + '</b> في منصة <b>سكني</b> بتاريخ <b>' + escH_(ds) + '</b>.</p>' +
     '<p>الخطوة التالية: الدخول إلى حسابك في منصة سكني، ومراجعة بيانات الحجز، ثم <b>توقيع عرض السعر</b> و<b>توثيق العقد</b>.</p>' +
     '<div style="font-size:18px;font-weight:bold;text-align:center;background:#eef6f1;color:#1f4d3a;border:2px dashed #1f4d3a;border-radius:12px;padding:12px">مهلة التوقيع والتوثيق: ' + n + ' يوماً من تاريخ التسجيل في سكني<div style="font-size:14px;font-weight:normal;margin-top:4px">آخر موعد: ' + escH_(dl) + '</div></div>' +
-    '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold;margin-top:14px">في حال عدم توقيع عرض السعر وتوثيق العقد قبل هذا الموعد، يُلغى الحجز وتُتاح الوحدة لغيرك.</p>' + bookingTable_(b) +
-    '<p>إذا واجهت أي صعوبة في سكني، تواصل مع موظف الحجز' + (b.maker ? ' <b>' + escH_(b.maker) + '</b>' : '') + '.</p>';
+    '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold;margin-top:14px">في حال عدم توقيع عرض السعر وتوثيق العقد قبل هذا الموعد، يُلغى الحجز وتُتاح الوحدة لغيرك.</p>' + bookingTable_(b);
   return sendLogged_(b.bid, 'contractDoc', b.email, 'توثيق العقد عبر منصة سكني — حجز ' + (b.refNo || ''), mailShell_('حجزك مسجَّل في سكني — مشروع جبين السكني', inner), emp);
 }
 function signRemindMail_(cfg, b, remaining, deadline, sakDate, emp) {
@@ -272,8 +271,7 @@ function signRemindMail_(cfg, b, remaining, deadline, sakDate, emp) {
     '<p>نذكّرك بضرورة <b>توقيع عرض السعر وتوثيق العقد</b> عبر منصة سكني للوحدة <b>' + escH_(b.unitId) + '</b> (حجز رقم <b>' + escH_(b.refNo) + '</b>)، فالمهلة <b>' + signDays_(cfg) + ' يوماً</b> من تاريخ تسجيل حجزك في سكني' + (sakDate ? ' (' + escH_(sakDate) + ')' : '') + '.</p>' +
     '<div style="font-size:20px;font-weight:bold;text-align:center;background:' + (urgent ? '#fdecea;color:#b3261e;border:2px solid #b3261e' : '#eef6f1;color:#1f4d3a;border:2px dashed #1f4d3a') + ';border-radius:12px;padding:12px">' +
     (remaining === 0 ? 'اليوم آخر يوم في مهلة التوقيع والتوثيق' : 'المتبقي من المهلة: ' + daysAr_(remaining)) + '<div style="font-size:14px;font-weight:normal;margin-top:4px">آخر موعد: ' + escH_(deadline) + '</div></div>' +
-    '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold;margin-top:14px">في حال عدم توقيع عرض السعر وتوثيق العقد خلال المدة المتبقية سيتم إلغاء الحجز وإتاحة الوحدة لغيرك.</p>' + bookingTable_(b) +
-    '<p>لتحديد موعد التوقيع تواصل مع موظف الحجز' + (b.maker ? ' <b>' + escH_(b.maker) + '</b>' : '') + ' أو بالرد على هذه الرسالة.</p>';
+    '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold;margin-top:14px">في حال عدم توقيع عرض السعر وتوثيق العقد خلال المدة المتبقية سيتم إلغاء الحجز وإتاحة الوحدة لغيرك.</p>' + bookingTable_(b);
   return sendLogged_(b.bid, 'signRemind', b.email, 'تذكير: توقيع عرض السعر وتوثيق العقد — حجز ' + (b.refNo || '') + ' (المتبقي ' + daysAr_(remaining) + ')', mailShell_('تذكير بتوقيع عرض السعر وتوثيق العقد — مشروع جبين السكني', inner), emp);
 }
 /** من الموقع فور الحدث: {action:'notify', event:'welcome'|'sakani', bid, idToken} */
