@@ -208,7 +208,7 @@ function sendConfirmMail_(b, cfg, email, when) {
   sendMail_(email, 'تأكيد الإقرار والتعهد — حجز ' + (b.refNo || ''), mailShell_('تم تأكيد الإقرار والتعهد — مشروع جبين السكني', inner));
 }
 
-/* ---------- الرسائل الآلية (مباركة الحجز، توثيق العقد في سكني، تذكير التوقيع، تذكير الموظفين بسكني) ----------
+/* ---------- الرسائل الآلية (مباركة الحجز، رسوم الجدية، مهلة التوثيق، تذكير التوقيع، تذكير الموظفين بسكني) ----------
  * كل رسالة لها مفتاح تفعيل في config/mail (الإعدادات في الموقع) وكلها موقوفة افتراضياً.
  * كل إرسال يُسجَّل في mailLog/{bid} ويُحتسب في الحد اليومي MAIL_DAILY_CAP (الخطة المجانية في Resend: 100/يوم).
  */
@@ -247,6 +247,7 @@ function nextStepsHtml_(cfg, b) {
   var n = signDays_(cfg);
   return '<h3 style="margin:22px 0 6px">الخطوات التالية</h3><ol style="padding-right:20px;margin:0">' +
     '<li>التسجيل في منصة <b>سكني</b> وربط الحجز بحسابك (يتولى موظف الحجز تسجيله ويصلك إشعار).</li>' +
+    '<li><b>توثيق الحجز</b> بدفع <b>رسوم الجدية</b> من خلال منصة سكني.</li>' +
     '<li>توقيع <b>عرض السعر</b> و<b>توثيق العقد</b> عبر منصة سكني خلال <b>' + n + ' يوماً</b> من تاريخ التسجيل في سكني.</li></ol>' +
     '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold">في حال عدم توقيع عرض السعر وتوثيق العقد خلال ' + n + ' يوماً من التسجيل في سكني، يُلغى الحجز وتُتاح الوحدة لغيرك.</p>';
 }
@@ -255,6 +256,16 @@ function welcomeMail_(cfg, b, emp) {
     '<p style="font-size:17px;font-weight:bold;color:#1f4d3a">مبارك لك حجز وحدتك السكنية في مشروع جبين 🎉</p>' +
     '<p>تم تسجيل حجزك برقم <b>' + escH_(b.refNo) + '</b>' + (b.status === 'pending' ? ' (حجز مبدئي بانتظار الاعتماد)' : '') + '. هذه بيانات الوحدة:</p>' + bookingTable_(b) + nextStepsHtml_(cfg, b);
   return sendLogged_(b.bid, 'welcome', b.email, 'مبارك حجزك — حجز ' + (b.refNo || ''), mailShell_('مبارك الحجز — مشروع جبين السكني', inner), emp);
+}
+function earnestMail_(cfg, b, sak, emp) {
+  var ds = sakaniDate_(sak) || riyadhDate_();
+  var inner = '<p>الأستاذ/ة <b>' + escH_(b.name) + '</b>، تحية طيبة.</p>' +
+    '<p>تم إدخال حجزك رقم <b>' + escH_(b.refNo) + '</b> للوحدة <b>' + escH_(b.unitId) + '</b> في منصة <b>سكني</b> بتاريخ <b>' + escH_(ds) + '</b>.</p>' +
+    '<div style="font-size:18px;font-weight:bold;text-align:center;background:#eef6f1;color:#1f4d3a;border:2px dashed #1f4d3a;border-radius:12px;padding:12px">الخطوة المطلوبة الآن: توثيق الحجز بدفع رسوم الجدية عبر منصة سكني</div>' +
+    '<ol style="padding-right:20px;margin:14px 0 0"><li>الدخول إلى حسابك في منصة سكني.</li><li>فتح الحجز الخاص بالوحدة <b>' + escH_(b.unitId) + '</b>.</li><li>سداد <b>رسوم الجدية</b> بالطريقة المتاحة في المنصة.</li></ol>' +
+    '<p style="background:#fff6d6;border-radius:10px;padding:12px;font-weight:bold;margin-top:14px">لا يُعد الحجز موثقاً في سكني إلا بعد سداد رسوم الجدية.</p>' +
+    '<p>بعد السداد تأتي خطوة توقيع عرض السعر وتوثيق العقد خلال <b>' + signDays_(cfg) + ' يوماً</b> من تاريخ التسجيل في سكني.</p>' + bookingTable_(b);
+  return sendLogged_(b.bid, 'earnest', b.email, 'توثيق الحجز بدفع رسوم الجدية عبر سكني — حجز ' + (b.refNo || ''), mailShell_('توثيق الحجز في سكني — مشروع جبين السكني', inner), emp);
 }
 function contractDocMail_(cfg, b, sak, emp) {
   var n = signDays_(cfg), ds = sakaniDate_(sak) || riyadhDate_(), dl = addDays_(ds, n);
@@ -289,11 +300,12 @@ function notifyRoute_(body) {
     return { ok: true, sent: welcomeMail_(cfg, b, emp) === 'sent' };
   }
   if (body.event === 'sakani') {
-    if (!cfg.contractDoc) return { ok: true, sent: false, reason: 'الرسالة موقوفة' };
-    if (sentAt_(entries, 'contractDoc')) return { ok: true, sent: false, reason: 'أُرسلت سابقاً' };
     var sak = fbGet_(FIREBASE + '/customers/' + b.natId + '/sakani/' + bid);
     if (!sak) return { ok: true, sent: false, reason: 'لم يُسجَّل في سكني بعد' };
-    return { ok: true, sent: contractDocMail_(cfg, b, sak, emp) === 'sent' };
+    var sent = [];
+    if (cfg.earnest && !sentAt_(entries, 'earnest') && earnestMail_(cfg, b, sak, emp) === 'sent') sent.push('earnest');
+    if (cfg.contractDoc && Number(cfg.contractDelay || 0) === 0 && !sentAt_(entries, 'contractDoc') && contractDocMail_(cfg, b, sak, emp) === 'sent') sent.push('contractDoc');
+    return { ok: true, sent: sent.length > 0, types: sent };
   }
   throw new Error('حدث غير معروف');
 }
@@ -306,9 +318,10 @@ function setupMailTrigger() {
 /** يعمل كل ساعة: يلتقط ما فات (مباركة/سكني)، يرسل تذكيرات التوقيع، ويرسل ملخص سكني لمدخلي الحجوزات مرة يومياً بعد الساعة 9 صباحاً */
 function mailScheduler() {
   var cfg = mailCfg_();
-  if (!cfg.welcome && !cfg.contractDoc && !cfg.signRemind && !cfg.sakaniStaff) return { ok: true, skipped: 'all off' };
+  if (!cfg.welcome && !cfg.earnest && !cfg.contractDoc && !cfg.signRemind && !cfg.sakaniStaff) return { ok: true, skipped: 'all off' };
   var bookings = fbGet_(FIREBASE + '/bookings') || {}, customers = fbGet_(FIREBASE + '/customers') || {}, log = fbGet_(FIREBASE + '/mailLog') || {};
-  var since = cfg.since || {}, out = { welcome: 0, contractDoc: 0, signRemind: 0, staff: 0, quota: false };
+  var since = cfg.since || {}, out = { welcome: 0, earnest: 0, contractDoc: 0, signRemind: 0, staff: 0, quota: false };
+  var contractDelay = Math.max(0, Number(cfg.contractDelay || 0)) * DAY_MS; // رسالة مهلة التوقيع تُرسل بعد رسالة رسوم الجدية بهذه المدة
   var h = riyadhHour_(Date.now()), quiet = h < 8 || h >= 21; // لا رسائل للعملاء ليلاً
   var waitingSakani = {};
   Object.keys(bookings).forEach(function (bid) {
@@ -318,7 +331,8 @@ function mailScheduler() {
     if (quiet || out.quota || !validEmail_(b.email)) return;
     var entries = logOf_(log, bid), r;
     if (cfg.welcome && b.createdAt >= (since.welcome || 0) && !sentAt_(entries, 'welcome')) { r = welcomeMail_(cfg, b); if (r === 'quota') out.quota = true; else if (r === 'sent') out.welcome++; }
-    if (cfg.contractDoc && sak && sak.at >= (since.contractDoc || 0) && !sentAt_(entries, 'contractDoc')) { r = contractDocMail_(cfg, b, sak); if (r === 'quota') out.quota = true; else if (r === 'sent') out.contractDoc++; }
+    if (cfg.earnest && sak && sak.at >= (since.earnest || 0) && !sentAt_(entries, 'earnest')) { r = earnestMail_(cfg, b, sak); if (r === 'quota') out.quota = true; else if (r === 'sent') out.earnest++; }
+    if (cfg.contractDoc && sak && sak.at >= (since.contractDoc || 0) && Date.now() - sak.at >= contractDelay && !sentAt_(entries, 'contractDoc')) { r = contractDocMail_(cfg, b, sak); if (r === 'quota') out.quota = true; else if (r === 'sent') out.contractDoc++; }
     if (cfg.signRemind && !signed && sak) { // المهلة تبدأ من تاريخ التسجيل في سكني
       var ds = sakaniDate_(sak), passed = daysSince_(ds), remaining = signDays_(cfg) - passed, deadline = signDeadline_(cfg, sak);
       var before = Number(cfg.remindBefore || 7), every = Math.max(1, Number(cfg.remindEvery || 3)), last = sentAt_(entries, 'signRemind');
@@ -346,7 +360,7 @@ function mailScheduler() {
 function testAutoMails() {
   var cfg = { signDays: 30, remindBefore: 7, remindEvery: 3 }, sak = { at: Date.now() - 27 * DAY_MS };
   var b = { bid: '_test', refNo: 'JB-TEST-000-00000', unitId: 'AZ-000', district: 'العزيزية', plot: '000', block: '00', model: 'B1', company: 'اختبار', price: 1590000, name: 'عميل تجريبي', natId: '1000000000', bookingDate: riyadhDate_(), email: SUPER_ADMIN, maker: 'موظف تجريبي', status: 'approved', createdAt: Date.now() };
-  var inner = welcomeMail_(cfg, b) + ' / ' + contractDocMail_(cfg, b, sak) + ' / ' + signRemindMail_(cfg, b, 3, signDeadline_(cfg, sak), sakaniDate_(sak));
+  var inner = welcomeMail_(cfg, b) + ' / ' + earnestMail_(cfg, b, sak) + ' / ' + contractDocMail_(cfg, b, sak) + ' / ' + signRemindMail_(cfg, b, 3, signDeadline_(cfg, sak), sakaniDate_(sak));
   try { fbDelete_(FIREBASE + '/mailLog/_test'); } catch (e) {}
   return inner + ' → ' + SUPER_ADMIN;
 }
