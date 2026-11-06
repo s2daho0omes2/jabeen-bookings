@@ -185,6 +185,11 @@ body.lgmode .lgfoot{display:block}
 .ccard .cr span:last-child{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ccard .cf{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;margin-top:2px}
 .st.none{background:var(--hover);color:var(--muted)}
+.sk{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:2px 9px;font-size:12px;font-weight:800;border:1px solid;white-space:nowrap}
+.sk.ok{background:#e3f6ea;color:#0f6b3a;border-color:#1e8e4e}
+.sk.wait{background:var(--amber-bg);color:var(--amber);border-color:var(--amber);animation:skBlink 1.3s ease-in-out infinite}
+@keyframes skBlink{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.sk.wait{animation:none}}
 .modal.wide{max-width:880px;max-height:92vh;overflow:auto}
 .modal h4{color:var(--green);font-size:16px;margin:18px 0 8px;border-bottom:1px solid var(--line);padding-bottom:6px}
 .tl{display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:320px;overflow:auto}
@@ -340,7 +345,7 @@ body.lgmode .lgfoot{display:block}
         <div class="hint">بطاقة لكل عميل تُنشأ تلقائياً من حجوزاته (برقم الهوية) وتعكس آخر بياناته فور أي حجز أو اعتماد أو إلغاء. اضغط البطاقة لعرض الملف الكامل: الحجوزات، التعهد، وسجل التحديثات.</div>
         <div class="toolbar">
           <input id="cSearch" placeholder="بحث: اسم / هوية / جوال / وحدة / كود الحجز…" style="min-width:300px">
-          <select id="cStatus"><option value="">كل العملاء</option><option value="approved">بحجز معتمد</option><option value="pending">بحجز مبدئي</option><option value="none">بدون حجز نشط</option></select>
+          <select id="cStatus"><option value="">كل العملاء</option><option value="approved">بحجز معتمد</option><option value="pending">بحجز مبدئي</option><option value="none">بدون حجز نشط</option><option value="sakani-wait">بانتظار التسجيل في سكني ⏳</option><option value="sakani-ok">مسجَّل في سكني ✓</option></select>
           <select id="cCompany"><option value="">كل الشركات</option></select>
           <span class="sp"></span>
           <button class="btn sec sm" id="cExport">تصدير Excel</button>
@@ -603,8 +608,9 @@ function showDbError(e){
 /* ===== Auth: one-time email link, no saved session ===== */
 const SUPER_ADMIN='s2.daho0ome.s2@gmail.com';
 const IDLE_MS=30*60*1000;
+const KEEP_SESSION=true; // مؤقت أثناء التطوير: الجلسة تبقى بعد تحديث الصفحة وبدون مهلة خمول. أعده إلى false لاستعادة الحماية الكاملة.
 const auth=firebase.auth(); auth.languageCode='ar';
-const authReady=auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+const authReady=auth.setPersistence(KEEP_SESSION?firebase.auth.Auth.Persistence.LOCAL:firebase.auth.Auth.Persistence.NONE);
 const emailKey=e=>String(e||'').trim().toLowerCase().replace(/\./g,',');
 const validEmail=e=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
 let me=null;
@@ -653,6 +659,7 @@ async function begin(name){
   session={role:me.rec.role,name,email:me.email};
   try{await loadMaster()}catch(e){showDbError(e)}
   enterApp();
+  if(KEEP_SESSION)return;
   let t;const reset=()=>{clearTimeout(t);t=setTimeout(()=>auth.signOut(),IDLE_MS)};
   ['mousemove','keydown','click','touchstart','scroll'].forEach(ev=>addEventListener(ev,reset,{passive:true}));reset();
 }
@@ -892,6 +899,10 @@ $('bExport').onclick=()=>csv('الحجوزات',['كود الحجز','الوحد
 /* ===== Customers ===== */
 let customers={};   // natId -> {notes:{id:{at,by,byEmail,text}}}
 let custOpen=null;  // natId of the open customer modal
+const sakaniOf=(natId,bid)=>(customers[natId]&&customers[natId].sakani&&customers[natId].sakani[bid])||null;
+function daysSince(ds){if(!ds)return null;const d=new Date(ds+'T00:00:00'),n=new Date();n.setHours(0,0,0,0);return Math.max(0,Math.round((n-d)/86400000))}
+function daysLabel(n){if(n==null)return '—';if(n===0)return 'اليوم';if(n===1)return 'يوم واحد';if(n===2)return 'يومان';if(n<=10)return n+' أيام';return n+' يوم'}
+function sakaniChip(c){if(!c.active)return '';return c.sakani?`<span class="sk ok" title="مسجَّل في سكني ${fmtTime(c.sakani.at)} · ${esc(c.sakani.by||'')}">سكني ✓</span>`:`<span class="sk wait" title="بانتظار عكس الحجز في سكني">سكني ⏳</span>`}
 function buildCustomers(){
   const m={};
   Object.entries(bookings).forEach(([bid,b])=>{if(!b||!b.natId)return;(m[b.natId]=m[b.natId]||[]).push({bid,...b})});
@@ -901,22 +912,24 @@ function buildCustomers(){
     const p=active||list[0];
     const notes=Object.entries((customers[natId]&&customers[natId].notes)||{}).map(([id,n])=>({id,...n})).sort((a,b)=>(b.at||0)-(a.at||0));
     const last=Math.max(0,...list.map(b=>Math.max(b.createdAt||0,b.checkedAt||0)),...notes.map(n=>n.at||0));
-    return {natId,name:p.name||'',phone:p.phone||'',email:p.email||'',company:p.company||'',empNo:p.empNo||'',active,list,notes,last,state:active?active.status:'none'}})}
+    return {natId,name:p.name||'',phone:p.phone||'',email:p.email||'',company:p.company||'',empNo:p.empNo||'',active,list,notes,last,state:active?active.status:'none',sakani:active?sakaniOf(natId,active.bid):null}})}
 const CUST_STATE={approved:'حجز معتمد',pending:'حجز مبدئي',none:'بدون حجز نشط'};
 function custStateBadge(c){const pl=c.active&&c.active.status==='approved'&&isPledged(c.active.bid);return `<span class="st ${pl?'pledged':c.state}">${pl?'معتمد ومتعهّد':CUST_STATE[c.state]}</span>`}
 ['cSearch','cStatus','cCompany'].forEach(i=>$(i).addEventListener('input',renderCustomers));
 function filteredCustomers(all){const q=$('cSearch').value.trim().toLowerCase(),st=$('cStatus').value,co=$('cCompany').value;
-  return all.filter(c=>(!st||c.state===st)&&(!co||c.company===co)&&(!q||[c.name,c.natId,c.phone,c.email,c.empNo,...c.list.flatMap(b=>[b.unitId,b.plot,b.refNo])].some(v=>String(v||'').toLowerCase().includes(q)))).sort((a,b)=>b.last-a.last)}
+  const okSt=c=>!st||(st==='sakani-wait'?(c.active&&!c.sakani):st==='sakani-ok'?(c.active&&!!c.sakani):c.state===st);
+  return all.filter(c=>okSt(c)&&(!co||c.company===co)&&(!q||[c.name,c.natId,c.phone,c.email,c.empNo,...c.list.flatMap(b=>[b.unitId,b.plot,b.refNo])].some(v=>String(v||'').toLowerCase().includes(q)))).sort((a,b)=>b.last-a.last)}
 function renderCustomers(){
   if(!$('cCards')||!session)return;
-  const all=buildCustomers();const st={approved:0,pending:0,none:0};all.forEach(c=>st[c.state]++);
-  $('cStats').innerHTML=[['إجمالي العملاء',all.length],['بحجز معتمد',st.approved],['بحجز مبدئي',st.pending],['بدون حجز نشط',st.none]].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  const all=buildCustomers();const st={approved:0,pending:0,none:0,sk:0};all.forEach(c=>{st[c.state]++;if(c.active&&!c.sakani)st.sk++});
+  $('cStats').innerHTML=[['إجمالي العملاء',all.length],['بحجز معتمد',st.approved],['بحجز مبدئي',st.pending],['بدون حجز نشط',st.none],['بانتظار سكني ⏳',st.sk]].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
   const rows=filteredCustomers(all);$('cCount').textContent=`${rows.length} عميل`;
   $('cCards').innerHTML=rows.map(c=>`<div class="ccard" data-nat="${esc(c.natId)}">
-    <div class="ch"><div class="av">${esc((c.name.trim()[0]||'؟'))}</div><div class="cn"><b title="${esc(c.name)}">${esc(c.name)}</b><div class="mono muted">${esc(c.natId)}</div></div>${custStateBadge(c)}</div>
+    <div class="ch"><div class="av">${esc((c.name.trim()[0]||'؟'))}</div><div class="cn"><b title="${esc(c.name)}">${esc(c.name)}</b><div class="mono muted">${esc(c.natId)}</div></div><span style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">${custStateBadge(c)}${sakaniChip(c)}</span></div>
     <div class="cr"><span>الجوال</span><span class="mono">${esc(c.phone||'—')}</span></div>
     <div class="cr"><span>الشركة</span><span>${esc(c.company||'—')}</span></div>
     <div class="cr"><span>الوحدة</span><span>${c.active?`<b>${esc(c.active.unitId)}</b> · ${esc(c.active.district)} · ${esc(c.active.model)}`:'<span class="muted">لا توجد وحدة نشطة</span>'}</span></div>
+    ${c.active?`<div class="cr"><span>منذ الحجز</span><span><b>${daysLabel(daysSince(bDate(c.active)))}</b> <span class="muted">(${esc(bDate(c.active))})</span></span></div>`:''}
     <div class="cf"><span>${c.list.length} حجز</span><span>${c.notes.length} تحديث</span><span class="sp"></span><span>${fmtTime(c.last)}</span></div></div>`).join('')||'<div class="muted">لا يوجد عملاء مطابقون</div>';
   $('cCards').querySelectorAll('.ccard').forEach(el=>el.onclick=()=>custModal(el.dataset.nat));
   if(custOpen&&$('custModalBody'))custModal(custOpen,true);
@@ -928,11 +941,12 @@ function custModal(natId,keep){
   const h=`<div id="custModalBody"><h3>${esc(c.name)} <span class="mono muted" style="font-size:14px;font-weight:400">${esc(c.natId)}</span> ${custStateBadge(c)}</h3>
     <div class="kv"><div>الجوال</div><div class="mono">${esc(c.phone||'—')}</div><div>البريد</div><div class="mono" dir="ltr" style="text-align:right">${esc(c.email||'—')}</div><div>الشركة</div><div>${esc(c.company||'—')}</div><div>الرقم الوظيفي</div><div>${esc(c.empNo||'—')}</div>
       <div>الحجز النشط</div><div>${a?`<b class="mono">${esc(a.refNo||'')}</b> · الوحدة <b>${esc(a.unitId)}</b> · ${esc(a.district)} · بلوك ${esc(a.block)} · ${esc(a.model)} · ${fmt(a.price)} ر.س`:'<span class="muted">لا يوجد</span>'}</div>
-      <div>التعهد</div><div>${a?(pledgeBadge(a.bid,a)||'—')+(isPledged(a.bid)?' · '+fmtTime(pledgeOf(a.bid).confirmedAt):''):'—'}</div></div>
-    ${a?`<div class="actions" style="margin-top:4px"><button class="btn sec sm" onclick="doAction('view','${a.bid}')">عرض الحجز</button>${(pledgeOn()||pledgeOf(a.bid))?`<button class="btn sm ${isPledged(a.bid)?'sec':''}" onclick="pledgeModal('${a.bid}')">${isPledged(a.bid)?'التعهد ✓':'التعهد'}</button>`:''}</div>`:''}
+      <div>التعهد</div><div>${a?(pledgeBadge(a.bid,a)||'—')+(isPledged(a.bid)?' · '+fmtTime(pledgeOf(a.bid).confirmedAt):''):'—'}</div>
+      ${a?`<div>منذ الحجز</div><div><b>${daysLabel(daysSince(bDate(a)))}</b> <span class="muted">من ${esc(bDate(a))}</span></div><div>سكني</div><div>${c.sakani?`<span class="sk ok">مسجَّل في سكني ✓</span> · ${fmtTime(c.sakani.at)} · بواسطة ${esc(c.sakani.by||'')}`:`<span class="sk wait">بانتظار عكس الحجز في سكني ⏳</span>`}</div>`:''}</div>
+    ${a?`<div class="actions" style="margin-top:4px"><button class="btn sm ${c.sakani?'sec':''}" id="cSakani">${c.sakani?'إلغاء تأكيد سكني':'تم عكس الحجز في سكني ✓'}</button><button class="btn sec sm" onclick="doAction('view','${a.bid}')">عرض الحجز</button>${(pledgeOn()||pledgeOf(a.bid))?`<button class="btn sm ${isPledged(a.bid)?'sec':''}" onclick="pledgeModal('${a.bid}')">${isPledged(a.bid)?'التعهد ✓':'التعهد'}</button>`:''}</div>`:''}
     <h4>الحجوزات (${c.list.length})</h4>
-    <div class="tblwrap"><table><thead><tr><th>كود الحجز</th><th>الوحدة</th><th>الحي</th><th>النموذج</th><th>السعر</th><th>تاريخ الحجز</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th></th></tr></thead><tbody>
-    ${c.list.map(b=>`<tr><td class="mono"><b>${esc(b.refNo||'')}</b></td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.model)}</td><td>${fmt(b.price)}</td><td>${esc(b.bookingDate||'')}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span>${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:200px">${esc(b.rejectReason)}</div>`:''}</td><td>${esc(b.maker||'')}</td><td>${esc(b.checker||'')}</td><td><button class="btn sec sm" onclick="doAction('view','${b.bid}')">عرض</button></td></tr>`).join('')}</tbody></table></div>
+    <div class="tblwrap"><table><thead><tr><th>كود الحجز</th><th>الوحدة</th><th>الحي</th><th>النموذج</th><th>السعر</th><th>تاريخ الحجز</th><th>منذ</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th></th></tr></thead><tbody>
+    ${c.list.map(b=>`<tr><td class="mono"><b>${esc(b.refNo||'')}</b></td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.model)}</td><td>${fmt(b.price)}</td><td>${esc(bDate(b))}</td><td>${daysLabel(daysSince(bDate(b)))}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span>${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:200px">${esc(b.rejectReason)}</div>`:''}</td><td>${esc(b.maker||'')}</td><td>${esc(b.checker||'')}</td><td><button class="btn sec sm" onclick="doAction('view','${b.bid}')">عرض</button></td></tr>`).join('')}</tbody></table></div>
     <h4>المستندات</h4><div class="muted" style="font-size:13px">رفع ملفات العميل (الهوية، تعريف الراتب، خطاب التمويل، العقد…) يُضاف في مرحلة لاحقة.</div>
     <h4>سجل التحديثات (${c.notes.length})</h4>
     <div class="f" style="margin:0"><textarea id="cNoteText" rows="2" placeholder="اكتب تحديثاً: اتصال بالعميل، مستند مستلم، موعد، ملاحظة…">${esc(draft)}</textarea></div>
@@ -941,8 +955,17 @@ function custModal(natId,keep){
     <div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div></div>`;
   showModal(h,'wide');if(scroll)$('modalHost').querySelector('.modal').scrollTop=scroll;
   $('cNoteAdd').onclick=()=>addCustNote(natId);
+  if($('cSakani'))$('cSakani').onclick=()=>toggleSakani(natId,a.bid);
   $('cNoteText').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))addCustNote(natId)});
   $('custModalBody').querySelectorAll('[data-del]').forEach(btn=>btn.onclick=async()=>{if(!confirm('حذف هذا التحديث؟'))return;try{await ROOT.child('customers/'+natId+'/notes/'+btn.dataset.del).remove();log('حذف تحديث عميل','','',`${c.name} (${natId})`);toast('تم الحذف')}catch(e){toast(e.message,true)}});
+}
+async function toggleSakani(natId,bid){
+  const b=bookings[bid];if(!b)return;const cur=sakaniOf(natId,bid);
+  if(cur&&!confirm('إلغاء تأكيد التسجيل في سكني لهذا الحجز؟ سيرجع إلى «بانتظار التسجيل».'))return;
+  const btn=$('cSakani');if(btn)btn.disabled=true;
+  try{const r=ROOT.child('customers/'+natId+'/sakani/'+bid);if(cur)await r.remove();else await r.set({at:Date.now(),by:session.name,byEmail:session.email});
+    log(cur?'إلغاء تأكيد سكني':'تأكيد التسجيل في سكني',b.unitId,bid,`${b.name} — ${b.refNo||''}`);toast(cur?'أُلغي التأكيد — بانتظار التسجيل في سكني':'تم تسجيل الحجز في سكني ✓')}
+  catch(e){toast(/permission/i.test(String(e&&e.message))?'ليس لديك صلاحية — يلزم تحديث قواعد قاعدة البيانات':String(e&&e.message||e),true);if($('cSakani'))$('cSakani').disabled=false}
 }
 async function addCustNote(natId){
   const el=$('cNoteText'),t=(el?el.value:'').trim();if(!t)return toast('اكتب نص التحديث أولاً',true);if(t.length>1500)return toast('النص طويل جداً (الحد 1500 حرف)',true);
@@ -951,8 +974,8 @@ async function addCustNote(natId){
     log('تحديث على ملف عميل',c&&c.active?c.active.unitId:'',c&&c.active?c.active.bid:'',`${c?c.name:natId} — ${t.slice(0,80)}`);if(el)el.value='';toast('أُضيف التحديث')}
   catch(e){toast(/permission/i.test(String(e&&e.message))?'ليس لديك صلاحية إضافة تحديث — يلزم تحديث قواعد قاعدة البيانات':String(e&&e.message||e),true);if($('cNoteAdd'))$('cNoteAdd').disabled=false}
 }
-$('cExport').onclick=()=>csv('العملاء',['الاسم','الهوية','الجوال','البريد','الشركة','الرقم الوظيفي','الحالة','كود الحجز النشط','الوحدة','الحي','النموذج','السعر','عدد الحجوزات','عدد التحديثات','آخر تحديث'],
-  filteredCustomers(buildCustomers()).map(c=>[c.name,c.natId,c.phone,c.email,c.company,c.empNo,CUST_STATE[c.state],c.active?c.active.refNo:'',c.active?c.active.unitId:'',c.active?c.active.district:'',c.active?c.active.model:'',c.active?c.active.price:'',c.list.length,c.notes.length,fmtTime(c.last)]));
+$('cExport').onclick=()=>csv('العملاء',['الاسم','الهوية','الجوال','البريد','الشركة','الرقم الوظيفي','الحالة','سكني','كود الحجز النشط','الوحدة','الحي','النموذج','السعر','تاريخ الحجز','أيام منذ الحجز','عدد الحجوزات','عدد التحديثات','آخر تحديث'],
+  filteredCustomers(buildCustomers()).map(c=>[c.name,c.natId,c.phone,c.email,c.company,c.empNo,CUST_STATE[c.state],c.active?(c.sakani?'مسجَّل':'بانتظار التسجيل'):'',c.active?c.active.refNo:'',c.active?c.active.unitId:'',c.active?c.active.district:'',c.active?c.active.model:'',c.active?c.active.price:'',c.active?bDate(c.active):'',c.active?daysSince(bDate(c.active)):'',c.list.length,c.notes.length,fmtTime(c.last)]));
 
 /* ===== Units table ===== */
 ['uSearch','uDistrict','uCompany','uModel','uStatus'].forEach(i=>$(i).addEventListener('input',renderUnits));
