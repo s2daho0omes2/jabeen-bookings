@@ -172,6 +172,25 @@ body.lgmode .lgfoot{display:block}
 :root[data-theme="dark"] body.lgmode .login h2{color:var(--green)}
 :root[data-theme="dark"] body.lgmode::after{background:linear-gradient(180deg,rgba(8,14,11,.86) 0%,rgba(8,14,11,.55) 40%,rgba(8,14,11,.65) 70%,rgba(8,14,11,.94) 100%)}
 
+/* customers */
+.ccards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.ccard{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:14px 16px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:8px}
+.ccard:hover{border-color:var(--gold);box-shadow:0 6px 18px var(--shadow);transform:translateY(-2px)}
+.ccard .ch{display:flex;align-items:center;gap:10px}
+.ccard .av{width:42px;height:42px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;flex:none}
+.ccard .cn{flex:1;min-width:0}
+.ccard .cn b{display:block;color:var(--green);font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ccard .cr{display:flex;justify-content:space-between;gap:8px;font-size:14px;align-items:baseline}
+.ccard .cr span:first-child{color:var(--muted);font-weight:700;font-size:13px;flex:none}
+.ccard .cr span:last-child{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ccard .cf{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;margin-top:2px}
+.st.none{background:var(--hover);color:var(--muted)}
+.modal.wide{max-width:880px;max-height:92vh;overflow:auto}
+.modal h4{color:var(--green);font-size:16px;margin:18px 0 8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.tl{display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:320px;overflow:auto}
+.tli{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;white-space:pre-wrap}
+.tli .tlm{color:var(--muted);font-size:12px;font-weight:700;margin-bottom:4px;display:flex;justify-content:space-between;gap:8px;white-space:normal}
+.tli .tlm button{all:unset;cursor:pointer;color:var(--red);font-weight:700}
 /* modal */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
 .modal{background:var(--card);border-radius:20px;padding:24px;max-width:560px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
@@ -237,6 +256,7 @@ body.lgmode .lgfoot{display:block}
     <div class="tabs">
       <button class="tab active" data-tab="new">حجز جديد</button>
       <button class="tab" data-tab="bookings">الحجوزات <span class="badge hidden" id="pendBadge"></span></button>
+      <button class="tab" data-tab="customers">العملاء</button>
       <button class="tab hidden" data-tab="units">الوحدات (الماستر)</button>
       <button class="tab" data-tab="map">الخريطة</button>
       <button class="tab" data-tab="dash">لوحة المؤشرات</button>
@@ -309,6 +329,24 @@ body.lgmode .lgfoot{display:block}
         <div class="tblwrap"><table><thead><tr>
           <th>#</th><th>كود الحجز</th><th>الوحدة</th><th>الحي</th><th>بلوك</th><th>نموذج</th><th>الشركة</th><th>العميل</th><th>الهوية</th><th>الجوال</th><th>الدفع</th><th>تاريخ الحجز</th><th>الحالة</th><th>التعهد</th><th>المُدخل</th><th>المُراجع</th><th></th>
         </tr></thead><tbody id="bBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- CUSTOMERS -->
+    <section id="tab-customers" class="hidden">
+      <div class="stats" id="cStats"></div>
+      <div class="card">
+        <h2>العملاء</h2>
+        <div class="hint">بطاقة لكل عميل تُنشأ تلقائياً من حجوزاته (برقم الهوية) وتعكس آخر بياناته فور أي حجز أو اعتماد أو إلغاء. اضغط البطاقة لعرض الملف الكامل: الحجوزات، التعهد، وسجل التحديثات.</div>
+        <div class="toolbar">
+          <input id="cSearch" placeholder="بحث: اسم / هوية / جوال / وحدة / كود الحجز…" style="min-width:300px">
+          <select id="cStatus"><option value="">كل العملاء</option><option value="approved">بحجز معتمد</option><option value="pending">بحجز مبدئي</option><option value="none">بدون حجز نشط</option></select>
+          <select id="cCompany"><option value="">كل الشركات</option></select>
+          <span class="sp"></span>
+          <button class="btn sec sm" id="cExport">تصدير Excel</button>
+        </div>
+        <div class="count" id="cCount"></div>
+        <div class="ccards" id="cCards"></div>
       </div>
     </section>
 
@@ -456,7 +494,7 @@ function fillCompanyList(){$('companyList').innerHTML=COMPANIES.map(c=>`<option 
 function refreshCompanies(){
   COMPANIES=[...BASE_COMPANIES,...extraCompanies().filter(c=>!BASE_COMPANIES.includes(c))];
   extraCompanies().forEach((c,i)=>{if(!COMPANY_COLOR[c])COMPANY_COLOR[c]=EXTRA_COLORS[i%EXTRA_COLORS.length]});
-  fillCompanyList();[['bCompany','كل الشركات']].forEach(([id,f])=>{const el=$(id);const v=el.value;fillSelect(el,COMPANIES,f);el.value=v});
+  fillCompanyList();[['bCompany','كل الشركات'],['cCompany','كل الشركات']].forEach(([id,f])=>{const el=$(id);const v=el.value;fillSelect(el,COMPANIES,f);el.value=v});
   const u=$('uCompany');const uv=u.value;fillSelect(u,[...COMPANIES,UNALLOC],'كل الشركات');u.value=uv;
   if(typeof initMap==='function'&&mapDistrict)initMap();
 }
@@ -640,16 +678,17 @@ function startData(){
   else ROOT.child('users/'+emailKey(session.email)).on('value',s=>{users[emailKey(session.email)]=s.val()||{}},()=>{});
   ROOT.child('bookings').on('value',s=>{bookings=s.val()||{};renderAll()},showDbError);
   ROOT.child('pledges').on('value',s=>{pledges=s.val()||{};renderAll()});
+  ROOT.child('customers').on('value',s=>{customers=s.val()||{};renderCustomers()},()=>{});
   ROOT.child('idx/unit').on('value',s=>{idxUnit=s.val()||{};renderAll()});
   ROOT.child('idx/natId').on('value',s=>{idxNat=s.val()||{};renderAll()});
   ROOT.child('audit').limitToLast(300).on('value',s=>{audit=s.val()||{};renderAudit()});
 }
-function renderAll(){renderStats();refreshUnitCombo();checkSelectedUnit();checkNat();renderBookings();renderUnits();renderMarkers();renderFormMap();renderExceptions();if(!$('tab-dash').classList.contains('hidden'))renderDash();updateSubmit()}
+function renderAll(){renderStats();refreshUnitCombo();checkSelectedUnit();checkNat();renderBookings();renderCustomers();renderUnits();renderMarkers();renderFormMap();renderExceptions();if(!$('tab-dash').classList.contains('hidden'))renderDash();updateSubmit()}
 
 /* ===== Tabs ===== */
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
 function switchTab(name){document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
-  ['new','bookings','units','map','dash','exceptions','admin'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));if(name==='dash')renderDash()}
+  ['new','bookings','customers','units','map','dash','exceptions','admin'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));if(name==='dash')renderDash()}
 
 /* ===== Stats ===== */
 function renderStats(){
@@ -828,7 +867,7 @@ async function doAction(act,bid){
     <div>الحالة</div><div><span class="st ${b.status}">${STATUS_AR[b.status]}</span></div><div>الحي / البلوك / النموذج</div><div>${esc(b.district)} · ${esc(b.block)} · ${esc(b.model)}</div><div>الشركة</div><div>${esc(b.company)}</div><div>السعر</div><div>${fmt(b.price)} ر.س</div>
     <div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId)}</div><div>الرقم الوظيفي</div><div>${esc(b.empNo)}</div><div>الجوال</div><div class="mono">${esc(b.phone)}</div><div>البريد</div><div class="mono" dir="ltr" style="text-align:right">${esc(b.email||'—')}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>ملاحظات</div><div>${esc(b.notes)}</div><div>التعهد</div><div>${pledgeBadge(bid,b)||'—'}${isPledged(bid)?' · '+fmtTime(pledgeOf(bid).confirmedAt)+' · بواسطة '+esc(pledgeOf(bid).by||''):''}</div>
     <div>المُدخل</div><div>${esc(b.maker)} · ${fmtTime(b.createdAt)}</div><div>المُراجع</div><div>${esc(b.checker||'—')} ${b.checkedAt?'· '+fmtTime(b.checkedAt):''}</div>${b.rejectReason?`<div>السبب</div><div>${esc(b.rejectReason)}</div>`:''}<div>المصدر</div><div>${esc(b.source||'')}</div></div>
-    <div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
+    <div class="actions">${b.natId?`<button class="btn sec" onclick="custModal('${esc(b.natId)}')">بطاقة العميل</button>`:''}<button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
   if(act==='approve'){
     if(isMine(b)&&session.role!=='admin')return toast('لا يمكنك اعتماد حجز أدخلته أنت',true);
     if(pledgeOn()&&config.pledge.requireForApproval&&!isPledged(bid)&&!canBypassPledge())return toast('لا يمكن الاعتماد قبل تأكيد الإقرار والتعهد من العميل',true);
@@ -845,10 +884,75 @@ async function doAction(act,bid){
     await ROOT.child('idx/unit/'+b.unitId).transaction(c=>c===bid?null:undefined);if(b.natId)await ROOT.child('idx/natId/'+b.natId).transaction(c=>c===bid?null:undefined);
     log(act==='reject'?'رفض حجز':'إلغاء حجز',b.unitId,bid,`${b.name} — ${reason.trim()}`);toast(act==='reject'?'تم الرفض وتحرير الوحدة':'تم الإلغاء وتحرير الوحدة')}
 }
-function showModal(html){$('modalHost').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`}
-function closeModal(){$('modalHost').innerHTML=''}
+function showModal(html,cls){$('modalHost').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal ${cls||''}">${html}</div></div>`}
+function closeModal(){$('modalHost').innerHTML='';custOpen=null}
 $('bExport').onclick=()=>csv('الحجوزات',['كود الحجز','الوحدة','الحي','البلوك','النموذج','الشركة','السعر','العميل','الهوية','الرقم الوظيفي','الجوال','طريقة الدفع','تاريخ الحجز','الحالة','المُدخل','المُراجع','سبب','ملاحظات','وقت الإدخال'],
   filteredBookings().map(b=>[b.refNo,b.unitId,b.district,b.block,b.model,b.company,b.price,b.name,b.natId,b.empNo,b.phone,b.payMethod,b.bookingDate,STATUS_AR[b.status],b.maker,b.checker,b.rejectReason,b.notes,fmtTime(b.createdAt)]));
+
+/* ===== Customers ===== */
+let customers={};   // natId -> {notes:{id:{at,by,byEmail,text}}}
+let custOpen=null;  // natId of the open customer modal
+function buildCustomers(){
+  const m={};
+  Object.entries(bookings).forEach(([bid,b])=>{if(!b||!b.natId)return;(m[b.natId]=m[b.natId]||[]).push({bid,...b})});
+  return Object.entries(m).map(([natId,list])=>{
+    list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    const active=list.find(b=>b.status==='approved')||list.find(b=>b.status==='pending')||null;
+    const p=active||list[0];
+    const notes=Object.entries((customers[natId]&&customers[natId].notes)||{}).map(([id,n])=>({id,...n})).sort((a,b)=>(b.at||0)-(a.at||0));
+    const last=Math.max(0,...list.map(b=>Math.max(b.createdAt||0,b.checkedAt||0)),...notes.map(n=>n.at||0));
+    return {natId,name:p.name||'',phone:p.phone||'',email:p.email||'',company:p.company||'',empNo:p.empNo||'',active,list,notes,last,state:active?active.status:'none'}})}
+const CUST_STATE={approved:'حجز معتمد',pending:'حجز مبدئي',none:'بدون حجز نشط'};
+function custStateBadge(c){const pl=c.active&&c.active.status==='approved'&&isPledged(c.active.bid);return `<span class="st ${pl?'pledged':c.state}">${pl?'معتمد ومتعهّد':CUST_STATE[c.state]}</span>`}
+['cSearch','cStatus','cCompany'].forEach(i=>$(i).addEventListener('input',renderCustomers));
+function filteredCustomers(all){const q=$('cSearch').value.trim().toLowerCase(),st=$('cStatus').value,co=$('cCompany').value;
+  return all.filter(c=>(!st||c.state===st)&&(!co||c.company===co)&&(!q||[c.name,c.natId,c.phone,c.email,c.empNo,...c.list.flatMap(b=>[b.unitId,b.plot,b.refNo])].some(v=>String(v||'').toLowerCase().includes(q)))).sort((a,b)=>b.last-a.last)}
+function renderCustomers(){
+  if(!$('cCards')||!session)return;
+  const all=buildCustomers();const st={approved:0,pending:0,none:0};all.forEach(c=>st[c.state]++);
+  $('cStats').innerHTML=[['إجمالي العملاء',all.length],['بحجز معتمد',st.approved],['بحجز مبدئي',st.pending],['بدون حجز نشط',st.none]].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  const rows=filteredCustomers(all);$('cCount').textContent=`${rows.length} عميل`;
+  $('cCards').innerHTML=rows.map(c=>`<div class="ccard" data-nat="${esc(c.natId)}">
+    <div class="ch"><div class="av">${esc((c.name.trim()[0]||'؟'))}</div><div class="cn"><b title="${esc(c.name)}">${esc(c.name)}</b><div class="mono muted">${esc(c.natId)}</div></div>${custStateBadge(c)}</div>
+    <div class="cr"><span>الجوال</span><span class="mono">${esc(c.phone||'—')}</span></div>
+    <div class="cr"><span>الشركة</span><span>${esc(c.company||'—')}</span></div>
+    <div class="cr"><span>الوحدة</span><span>${c.active?`<b>${esc(c.active.unitId)}</b> · ${esc(c.active.district)} · ${esc(c.active.model)}`:'<span class="muted">لا توجد وحدة نشطة</span>'}</span></div>
+    <div class="cf"><span>${c.list.length} حجز</span><span>${c.notes.length} تحديث</span><span class="sp"></span><span>${fmtTime(c.last)}</span></div></div>`).join('')||'<div class="muted">لا يوجد عملاء مطابقون</div>';
+  $('cCards').querySelectorAll('.ccard').forEach(el=>el.onclick=()=>custModal(el.dataset.nat));
+  if(custOpen&&$('custModalBody'))custModal(custOpen,true);
+}
+function custModal(natId,keep){
+  const c=buildCustomers().find(x=>x.natId===natId);if(!c){closeModal();return}
+  const draft=keep&&$('cNoteText')?$('cNoteText').value:'';const scroll=keep&&$('modalHost').querySelector('.modal')?$('modalHost').querySelector('.modal').scrollTop:0;
+  custOpen=natId;const a=c.active;const admin=session.role==='admin';
+  const h=`<div id="custModalBody"><h3>${esc(c.name)} <span class="mono muted" style="font-size:14px;font-weight:400">${esc(c.natId)}</span> ${custStateBadge(c)}</h3>
+    <div class="kv"><div>الجوال</div><div class="mono">${esc(c.phone||'—')}</div><div>البريد</div><div class="mono" dir="ltr" style="text-align:right">${esc(c.email||'—')}</div><div>الشركة</div><div>${esc(c.company||'—')}</div><div>الرقم الوظيفي</div><div>${esc(c.empNo||'—')}</div>
+      <div>الحجز النشط</div><div>${a?`<b class="mono">${esc(a.refNo||'')}</b> · الوحدة <b>${esc(a.unitId)}</b> · ${esc(a.district)} · بلوك ${esc(a.block)} · ${esc(a.model)} · ${fmt(a.price)} ر.س`:'<span class="muted">لا يوجد</span>'}</div>
+      <div>التعهد</div><div>${a?(pledgeBadge(a.bid,a)||'—')+(isPledged(a.bid)?' · '+fmtTime(pledgeOf(a.bid).confirmedAt):''):'—'}</div></div>
+    ${a?`<div class="actions" style="margin-top:4px"><button class="btn sec sm" onclick="doAction('view','${a.bid}')">عرض الحجز</button>${(pledgeOn()||pledgeOf(a.bid))?`<button class="btn sm ${isPledged(a.bid)?'sec':''}" onclick="pledgeModal('${a.bid}')">${isPledged(a.bid)?'التعهد ✓':'التعهد'}</button>`:''}</div>`:''}
+    <h4>الحجوزات (${c.list.length})</h4>
+    <div class="tblwrap"><table><thead><tr><th>كود الحجز</th><th>الوحدة</th><th>الحي</th><th>النموذج</th><th>السعر</th><th>تاريخ الحجز</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th></th></tr></thead><tbody>
+    ${c.list.map(b=>`<tr><td class="mono"><b>${esc(b.refNo||'')}</b></td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.model)}</td><td>${fmt(b.price)}</td><td>${esc(b.bookingDate||'')}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span>${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:200px">${esc(b.rejectReason)}</div>`:''}</td><td>${esc(b.maker||'')}</td><td>${esc(b.checker||'')}</td><td><button class="btn sec sm" onclick="doAction('view','${b.bid}')">عرض</button></td></tr>`).join('')}</tbody></table></div>
+    <h4>المستندات</h4><div class="muted" style="font-size:13px">رفع ملفات العميل (الهوية، تعريف الراتب، خطاب التمويل، العقد…) يُضاف في مرحلة لاحقة.</div>
+    <h4>سجل التحديثات (${c.notes.length})</h4>
+    <div class="f" style="margin:0"><textarea id="cNoteText" rows="2" placeholder="اكتب تحديثاً: اتصال بالعميل، مستند مستلم، موعد، ملاحظة…">${esc(draft)}</textarea></div>
+    <div class="actions" style="margin-top:8px"><button class="btn sm" id="cNoteAdd">إضافة التحديث</button><span class="muted" style="font-size:12px">يُسجَّل باسمك ووقته ولا يمكن تعديله بعد الإضافة.</span></div>
+    <div class="tl">${c.notes.map(n=>`<div class="tli"><div class="tlm"><span>${fmtTime(n.at)} · ${esc(n.by||'')}</span>${admin?`<button data-del="${esc(n.id)}" title="حذف التحديث">حذف</button>`:''}</div>${esc(n.text||'')}</div>`).join('')||'<div class="muted" style="font-size:13px">لا توجد تحديثات بعد</div>'}</div>
+    <div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div></div>`;
+  showModal(h,'wide');if(scroll)$('modalHost').querySelector('.modal').scrollTop=scroll;
+  $('cNoteAdd').onclick=()=>addCustNote(natId);
+  $('cNoteText').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))addCustNote(natId)});
+  $('custModalBody').querySelectorAll('[data-del]').forEach(btn=>btn.onclick=async()=>{if(!confirm('حذف هذا التحديث؟'))return;try{await ROOT.child('customers/'+natId+'/notes/'+btn.dataset.del).remove();log('حذف تحديث عميل','','',`${c.name} (${natId})`);toast('تم الحذف')}catch(e){toast(e.message,true)}});
+}
+async function addCustNote(natId){
+  const el=$('cNoteText'),t=(el?el.value:'').trim();if(!t)return toast('اكتب نص التحديث أولاً',true);if(t.length>1500)return toast('النص طويل جداً (الحد 1500 حرف)',true);
+  const c=buildCustomers().find(x=>x.natId===natId);$('cNoteAdd').disabled=true;
+  try{await ROOT.child('customers/'+natId+'/notes').push({at:Date.now(),by:session.name,byEmail:session.email,text:t});
+    log('تحديث على ملف عميل',c&&c.active?c.active.unitId:'',c&&c.active?c.active.bid:'',`${c?c.name:natId} — ${t.slice(0,80)}`);if(el)el.value='';toast('أُضيف التحديث')}
+  catch(e){toast(/permission/i.test(String(e&&e.message))?'ليس لديك صلاحية إضافة تحديث — يلزم تحديث قواعد قاعدة البيانات':String(e&&e.message||e),true);if($('cNoteAdd'))$('cNoteAdd').disabled=false}
+}
+$('cExport').onclick=()=>csv('العملاء',['الاسم','الهوية','الجوال','البريد','الشركة','الرقم الوظيفي','الحالة','كود الحجز النشط','الوحدة','الحي','النموذج','السعر','عدد الحجوزات','عدد التحديثات','آخر تحديث'],
+  filteredCustomers(buildCustomers()).map(c=>[c.name,c.natId,c.phone,c.email,c.company,c.empNo,CUST_STATE[c.state],c.active?c.active.refNo:'',c.active?c.active.unitId:'',c.active?c.active.district:'',c.active?c.active.model:'',c.active?c.active.price:'',c.list.length,c.notes.length,fmtTime(c.last)]));
 
 /* ===== Units table ===== */
 ['uSearch','uDistrict','uCompany','uModel','uStatus'].forEach(i=>$(i).addEventListener('input',renderUnits));
