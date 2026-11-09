@@ -18,7 +18,7 @@ var ALLOC_COL = 8; // H
 var DB_ROOT = FIREBASE.replace(/\/jabeenBookings$/, '');
 var SECRETS = DB_ROOT + '/pledgeSecrets';
 var FB_API_KEY = 'AIzaSyBs6zMzOL4ggegfLYIPgSb_RDqYXNf1cuo';
-var SUPER_ADMIN = 's2.daho0ome.s2@gmail.com';
+var SUPER_ADMIN = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL') || ''; // بريد المدير للرسائل التجريبية والتقارير؛ يُضبط في Script Properties
 var PLEDGE_TTL_MS = 5 * 60 * 1000;   // صلاحية الرمز
 var PLEDGE_RESEND_MS = 60 * 1000;    // أقل فاصل بين إرسالين
 var PLEDGE_MAX_ATTEMPTS = 5;
@@ -44,7 +44,7 @@ function doPost(e) {
   var body = null;
   try { body = JSON.parse((e && e.postData && e.postData.contents) || ''); } catch (err) { body = null; }
   if (body && body.action) {
-    try { return respond_(body.action === 'notify' ? notifyRoute_(body) : pledgeRoute_(body)); }
+    try { return respond_(body.action === 'notify' ? notifyRoute_(body) : body.action.indexOf('file') === 0 ? fileRoute_(body) : pledgeRoute_(body)); }
     catch (err) { return respond_({ ok: false, error: String(err.message || err) }); }
   }
   return respond_(syncAll());
@@ -80,7 +80,7 @@ function employee_(idToken) {
   if (!u || !u.emailVerified) throw new Error('البريد غير موثّق');
   var email = String(u.email).toLowerCase();
   var rec = fbGet_(FIREBASE + '/users/' + emailKey_(email)) || {};
-  if (email === SUPER_ADMIN) rec.role = 'admin';
+  if (rec.super) rec.role = 'admin'; // المدير الرئيسي = علامة super في سجل المستخدمين
   if (['maker', 'checker', 'admin'].indexOf(rec.role) < 0) throw new Error('هذا الحساب غير مصرح له');
   return { email: email, name: rec.name || email, role: rec.role };
 }
@@ -560,3 +560,58 @@ function writeSheet_(ss, name, head, rows) {
 }
 
 function ts_(ms) { return ms ? Utilities.formatDate(new Date(ms), 'Asia/Riyadh', 'yyyy-MM-dd HH:mm') : ''; }
+
+/* ---------- مستندات العملاء: تُحفظ في Google Drive لحساب مالك السكربت، وتُسجَّل بياناتها في Firebase ---------- */
+var FILE_MAX = 10 * 1024 * 1024;                 // 10 ميجابايت
+var FILE_ROOT_NAME = 'jabeen-bookings-attachments';
+var FILE_MIME_OK = /^(application\/pdf|image\/(jpeg|png|webp|heic|heif))$/;
+function fileRoute_(body) {
+  var emp = employee_(body.idToken);
+  var natId = String(body.natId || '').replace(/\D/g, '');
+  if (!/^[12]\d{9}$/.test(natId)) throw new Error('رقم هوية غير صالح');
+  if (body.action === 'fileUpload') return fileUpload_(emp, natId, body);
+  if (body.action === 'fileGet') return fileGet_(emp, natId, String(body.fid || ''));
+  if (body.action === 'fileDelete') return fileDelete_(emp, natId, String(body.fid || ''));
+  throw new Error('إجراء غير معروف');
+}
+function folderByName_(parent, name) { var it = parent.getFoldersByName(name); return it.hasNext() ? it.next() : parent.createFolder(name); }
+function fileFolder_(natId) { return folderByName_(folderByName_(DriveApp.getRootFolder(), FILE_ROOT_NAME), natId); }
+function fbPushKey_(url, obj) {
+  var r = UrlFetchApp.fetch(url + '.json', { method: 'post', contentType: 'application/json', headers: fbHeaders_(), payload: JSON.stringify(obj), muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw new Error('DB push ' + r.getResponseCode());
+  return JSON.parse(r.getContentText()).name;
+}
+function fileUpload_(emp, natId, body) {
+  var bytes = Utilities.base64Decode(String(body.data || ''));
+  if (!bytes.length) throw new Error('الملف فارغ');
+  if (bytes.length > FILE_MAX) throw new Error('حجم الملف يتجاوز 10 ميجابايت');
+  var mime = String(body.mime || '');
+  if (!FILE_MIME_OK.test(mime)) throw new Error('نوع الملف غير مسموح: PDF أو صورة (JPG/PNG) فقط');
+  var name = String(body.name || 'file').replace(/[\\\/:*?"<>|]/g, '_').slice(0, 120);
+  var label = String(body.label || 'أخرى').slice(0, 60);
+  if (!/^[12]\d{9}$/.test(natId)) throw new Error('رقم هوية غير صالح');
+  var f = fileFolder_(natId).createFile(Utilities.newBlob(bytes, mime, name));
+  f.setDescription(label + ' · ' + natId + ' · رفعه ' + emp.email);
+  var rec = { name: name, mime: mime, size: bytes.length, label: label, driveId: f.getId(), at: Date.now(), by: emp.name, byEmail: emp.email };
+  var fid = fbPushKey_(FIREBASE + '/customers/' + natId + '/files', rec);
+  audit_(emp, 'رفع مستند عميل', '', '', label + ' · ' + name + ' · ' + natId);
+  return { ok: true, fid: fid, file: rec };
+}
+function fileGet_(emp, natId, fid) {
+  if (!fid) throw new Error('معرّف المستند مفقود');
+  var rec = fbGet_(FIREBASE + '/customers/' + natId + '/files/' + fid);
+  if (!rec || !rec.driveId) throw new Error('المستند غير موجود');
+  var blob = DriveApp.getFileById(rec.driveId).getBlob();
+  audit_(emp, 'فتح مستند عميل', '', '', (rec.label || '') + ' · ' + (rec.name || '') + ' · ' + natId);
+  return { ok: true, name: rec.name, mime: rec.mime || blob.getContentType(), data: Utilities.base64Encode(blob.getBytes()) };
+}
+function fileDelete_(emp, natId, fid) {
+  if (!fid) throw new Error('معرّف المستند مفقود');
+  var rec = fbGet_(FIREBASE + '/customers/' + natId + '/files/' + fid);
+  if (!rec) throw new Error('المستند غير موجود');
+  if (emp.role !== 'admin' && rec.byEmail !== emp.email) throw new Error('حذف المستند للمدير أو لمن رفعه فقط');
+  try { DriveApp.getFileById(rec.driveId).setTrashed(true); } catch (e) {}
+  fbDelete_(FIREBASE + '/customers/' + natId + '/files/' + fid);
+  audit_(emp, 'حذف مستند عميل', '', '', (rec.label || '') + ' · ' + (rec.name || '') + ' · ' + natId);
+  return { ok: true };
+}

@@ -362,13 +362,13 @@ body.lgmode .lgfoot{display:block}
       <div class="stats" id="cStats"></div>
       <div class="card">
         <h2>العملاء</h2>
-        <div class="hint">بطاقة لكل عميل تُنشأ تلقائياً من حجوزاته (برقم الهوية) وتعكس آخر بياناته فور أي حجز أو اعتماد أو إلغاء. اضغط البطاقة لعرض الملف الكامل: الحجوزات، التعهد، وسجل التحديثات.</div>
+        <div class="hint">بطاقة لكل عميل تُنشأ تلقائياً من حجوزاته (برقم الهوية) أو تُضاف يدوياً قبل الحجز، وتعكس آخر بياناته فور أي حجز أو اعتماد أو إلغاء. اضغط البطاقة لعرض الملف الكامل: الحجوزات، التعهد، وسجل التحديثات.</div>
         <div class="toolbar">
           <input id="cSearch" placeholder="بحث: اسم / هوية / جوال / وحدة / كود الحجز…" style="min-width:300px">
           <select id="cStatus"><option value="">كل العملاء</option><option value="approved">بحجز معتمد</option><option value="pending">بحجز مبدئي</option><option value="none">بدون حجز نشط</option><option value="sakani-wait">بانتظار التسجيل في سكني ⏳</option><option value="sakani-ok">مسجَّل في سكني ✓</option><option value="sign-wait">بانتظار توقيع العرض والعقد 📝</option><option value="sign-late">انتهت مهلة التوقيع ⚠️</option><option value="sign-ok">وقّع العرض والعقد ✓</option></select>
           <select id="cCompany"><option value="">كل الشركات</option></select>
           <span class="sp"></span>
-          <button class="btn sec sm" id="cExport">تصدير Excel</button>
+          <button class="btn sm" id="cAdd">إضافة ملف عميل</button><button class="btn sec sm" id="cExport">تصدير Excel</button>
         </div>
         <div class="count" id="cCount"></div>
         <div class="ccards" id="cCards"></div>
@@ -843,6 +843,7 @@ function checkNat(){const v=$('fNatId').value;const el=$('natErr');el.className=
   if(!validNatId(v)){el.textContent=v.length<10?'':'رقم الهوية غير صحيح: 10 أرقام تبدأ بـ 1 أو 2';return false}
   const b=activeBookingForNat(v);
   if(b){el.textContent=`⛔ رقم الهوية مسجل على حجز آخر: الوحدة ${b.unitId} (${STATUS_AR[b.status]}) — ${b.name}`;return false}
+  const pr=profileOf(v);if(pr){[['fName','name'],['fPhone','phone'],['fEmail','email'],['fEmp','empNo']].forEach(([i,k])=>{if($(i)&&!$(i).value&&pr[k])$(i).value=pr[k]});if($('fCompany')&&!$('fCompany').value&&pr.company)$('fCompany').value=pr.company;el.className='okm';el.textContent='✓ رقم الهوية غير مكرر · عُبّئت بياناته من ملف العميل';return true}
   el.className='okm';el.textContent='✓ رقم الهوية غير مكرر';return true}
 function formProblems(){
   const P=[];const nat=$('fNatId').value,ph=$('fPhone').value,nm=$('fName').value.trim();
@@ -973,16 +974,18 @@ function sakaniChip(c){if(!c.active)return '';return c.sakani?`<span class="sk o
 function buildCustomers(){
   const m={};
   Object.entries(bookings).forEach(([bid,b])=>{if(!b||!b.natId)return;(m[b.natId]=m[b.natId]||[]).push({bid,...b})});
+  Object.entries(customers).forEach(([n,c])=>{if(c&&c.profile&&!m[n])m[n]=[]}); // ملفات عملاء بلا حجوزات
   return Object.entries(m).map(([natId,list])=>{
     list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     const active=list.find(b=>b.status==='approved')||list.find(b=>b.status==='pending')||null;
-    const p=active||list[0];
+    const pr=(customers[natId]&&customers[natId].profile)||{};const p0=active||list[0]||{};const p={name:p0.name||pr.name,phone:p0.phone||pr.phone,email:p0.email||pr.email,company:p0.company||pr.company,empNo:p0.empNo||pr.empNo};
     const notes=Object.entries((customers[natId]&&customers[natId].notes)||{}).map(([id,n])=>({id,...n})).sort((a,b)=>(b.at||0)-(a.at||0));
-    const last=Math.max(0,...list.map(b=>Math.max(b.createdAt||0,b.checkedAt||0)),...notes.map(n=>n.at||0));
+    const last=Math.max(0,...list.map(b=>Math.max(b.createdAt||0,b.checkedAt||0)),...notes.map(n=>n.at||0),pr.updatedAt||pr.at||0);
     return {natId,name:p.name||'',phone:p.phone||'',email:p.email||'',company:p.company||'',empNo:p.empNo||'',active,list,notes,last,state:active?active.status:'none',sakani:active?sakaniOf(natId,active.bid):null,signed:active?signedOf(natId,active.bid):null}})}
 const CUST_STATE={approved:'حجز معتمد',pending:'حجز مبدئي',none:'بدون حجز نشط'};
 function custStateBadge(c){const pl=c.active&&c.active.status==='approved'&&isPledged(c.active.bid);return `<span class="st ${pl?'pledged':c.state}">${pl?'معتمد ومتعهّد':CUST_STATE[c.state]}</span>`}
 ['cSearch','cStatus','cCompany'].forEach(i=>$(i).addEventListener('input',renderCustomers));
+$('cAdd').onclick=()=>custForm('');
 function filteredCustomers(all){const q=$('cSearch').value.trim().toLowerCase(),st=$('cStatus').value,co=$('cCompany').value;
   const late=c=>{const si=c.active&&signInfo(c);return !!(si&&si.remaining<0)};
   const okSt=c=>!st||(st==='sakani-wait'?(c.active&&!c.sakani):st==='sakani-ok'?(c.active&&!!c.sakani):st==='sign-wait'?(c.active&&!c.signed):st==='sign-late'?(c.active&&!c.signed&&late(c)):st==='sign-ok'?(c.active&&!!c.signed):c.state===st);
@@ -1018,13 +1021,13 @@ function custModal(natId,keep){
     ${c.list.map(b=>`<tr><td class="mono"><b>${esc(b.refNo||'')}</b></td><td>${unitLbl(b.unitId)}</td><td>${esc(b.district)}</td><td>${esc(b.model)}</td><td>${fmt(b.price)}</td><td>${esc(bDate(b))}</td><td>${daysLabel(daysSince(bDate(b)))}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span>${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:200px">${esc(b.rejectReason)}</div>`:''}</td><td>${esc(b.maker||'')}</td><td>${esc(b.checker||'')}</td><td><button class="btn sec sm" onclick="doAction('view','${b.bid}')">عرض</button></td></tr>`).join('')}</tbody></table></div>
     <h4>سجل الرسائل (${(()=>{const n=c.list.flatMap(b=>Object.values(mailLog[b.bid]||{})).length;return n})()})</h4>
     <div class="ml">${c.list.flatMap(b=>Object.values(mailLog[b.bid]||{}).map(m=>({...m,refNo:b.refNo}))).sort((x,y)=>(y.at||0)-(x.at||0)).map(m=>`<div class="mli"><b>${esc(MAIL_TYPE_AR[m.type]||m.type)}</b><span class="st ${m.status==='sent'?'available':'rejected'}">${m.status==='sent'?'أُرسلت ✓':'فشلت ✗'}</span><span class="mono" dir="ltr">${esc(m.to||'')}</span><span class="muted">${fmtTime(m.at)} · ${esc(m.by||'')} · ${esc(m.refNo||'')}</span>${m.error?`<span class="muted" style="color:var(--red)">${esc(m.error)}</span>`:''}</div>`).join('')||'<div class="muted" style="font-size:13px">لم تُرسل رسائل آلية لهذا العميل بعد</div>'}</div>
-    <h4>المستندات</h4><div class="muted" style="font-size:13px">رفع ملفات العميل (الهوية، تعريف الراتب، خطاب التمويل، العقد…) يُضاف في مرحلة لاحقة.</div>
+    <h4>المستندات (${filesOf(natId).length})</h4>${filesHtml(natId)}
     <h4>سجل التحديثات (${c.notes.length})</h4>
     <div class="f" style="margin:0"><textarea id="cNoteText" rows="2" placeholder="اكتب تحديثاً: اتصال بالعميل، مستند مستلم، موعد، ملاحظة…">${esc(draft)}</textarea></div>
     <div class="actions" style="margin-top:8px"><button class="btn sm" id="cNoteAdd">إضافة التحديث</button><span class="muted" style="font-size:12px">يُسجَّل باسمك ووقته ولا يمكن تعديله بعد الإضافة.</span></div>
     <div class="tl">${c.notes.map(n=>`<div class="tli"><div class="tlm"><span>${fmtTime(n.at)} · ${esc(n.by||'')}</span>${admin?`<button data-del="${esc(n.id)}" title="حذف التحديث">حذف</button>`:''}</div>${esc(n.text||'')}</div>`).join('')||'<div class="muted" style="font-size:13px">لا توجد تحديثات بعد</div>'}</div>
-    <div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div></div>`;
-  showModal(h,'wide');if(scroll)$('modalHost').querySelector('.modal').scrollTop=scroll;
+    <div class="actions"><button class="btn sec sm" onclick="custForm('${esc(natId)}')">تعديل بيانات العميل</button>${admin&&!c.list.length?`<button class="btn danger sm" onclick="deleteCustomer('${esc(natId)}')">حذف ملف العميل</button>`:''}<span class="sp"></span><button class="btn sec" onclick="closeModal()">إغلاق</button></div></div>`;
+  showModal(h,'wide');if(scroll)$('modalHost').querySelector('.modal').scrollTop=scroll;wireFiles(natId);
   $('cNoteAdd').onclick=()=>addCustNote(natId);
   if($('cSakani'))$('cSakani').onclick=()=>toggleSakani(natId,a.bid);
   if($('cSigned'))$('cSigned').onclick=()=>toggleSigned(natId,a.bid);
@@ -1483,6 +1486,48 @@ function skInit(){if(skInited||!session||session.role!=='admin')return;skInited=
   const dz=$('skDrop'),fi=$('skFile');['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('over')}));['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('over')}));
   dz.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)skHandleFile(f)});fi.addEventListener('change',()=>{if(fi.files[0])skHandleFile(fi.files[0]);fi.value=''});
   $('skReview').onclick=()=>skRun&&skWizard(0);$('skExport').onclick=skExport}
+
+
+/* ===== ملف العميل: سجل مستقل (بدون حجز) + مستندات في Google Drive عبر Apps Script ===== */
+const FILE_LABELS=['الهوية الوطنية','تعريف الراتب','خطاب التمويل','عرض السعر','العقد','إيصال رسوم الحجز','الإقرار والتعهد','أخرى'];
+const profileOf=natId=>(customers[natId]&&customers[natId].profile)||null;
+const filesOf=natId=>Object.entries((customers[natId]&&customers[natId].files)||{}).map(([id,f])=>({id,...f})).sort((a,b)=>(b.at||0)-(a.at||0));
+const fmtSize=n=>n>=1048576?(n/1048576).toFixed(1)+' م.ب':n>=1024?Math.round(n/1024)+' ك.ب':(n||0)+' ب';
+function custForm(natId){const p=natId?profileOf(natId):null;const c=natId?buildCustomers().find(x=>x.natId===natId):null;
+  const v=k=>esc((p&&p[k])||(c&&c[k])||'');
+  showModal(`<h3>${natId?'تعديل بيانات العميل':'إضافة ملف عميل'}</h3>
+    <div class="muted" style="font-size:13px;margin-bottom:8px">${natId?'التعديل يخص بطاقة العميل فقط ولا يغيّر بيانات حجوزاته المسجلة.':'يُنشأ ملف للعميل قبل أن يكون له حجز. عند تسجيل حجز بنفس رقم الهوية تُعبّأ بياناته تلقائياً.'}</div>
+    <div class="f"><label>رقم الهوية الوطنية <span class="req">*</span></label><input id="pfNat" inputmode="numeric" maxlength="10" value="${esc(natId||'')}" ${natId?'disabled':''} placeholder="10 أرقام تبدأ بـ 1 أو 2"></div>
+    <div class="f"><label>الاسم الكامل <span class="req">*</span></label><input id="pfName" value="${v('name')}"></div>
+    <div class="f"><label>رقم الجوال</label><input id="pfPhone" inputmode="tel" value="${v('phone')}" placeholder="05xxxxxxxx"></div>
+    <div class="f"><label>البريد الإلكتروني</label><input id="pfEmail" type="email" dir="ltr" value="${v('email')}"></div>
+    <div class="f"><label>الشركة</label><input id="pfCompany" list="pfCoList" value="${v('company')}"><datalist id="pfCoList">${COMPANIES.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div>
+    <div class="f"><label>الرقم الوظيفي</label><input id="pfEmp" value="${v('empNo')}"></div>
+    <div class="err" id="pfErr"></div>
+    <div class="actions"><button class="btn" id="pfSave">${natId?'حفظ التعديل':'إنشاء الملف'}</button><button class="btn sec" onclick="${natId?`custModal('${esc(natId)}')`:'closeModal()'}">إلغاء</button></div>`);
+  $('pfSave').onclick=async()=>{const n=sanitizeDigits($('pfNat').value),name=$('pfName').value.trim(),phone=$('pfPhone').value.trim(),email=$('pfEmail').value.trim().toLowerCase(),company=canonCompany($('pfCompany').value),empNo=$('pfEmp').value.trim();const err=m=>{$('pfErr').textContent=m};
+    if(!validNatId(n))return err('رقم الهوية غير صحيح: 10 أرقام تبدأ بـ 1 أو 2');if(name.length<3)return err('اكتب الاسم الكامل');if(email&&!validEmail(email))return err('البريد غير صحيح');
+    if(!natId){const b=activeBookingForNat(n);if(b)return err(`هذا العميل له حجز نشط على الوحدة ${unitTxt(b.unitId)} وملفه موجود بالفعل`);if(profileOf(n)||buildCustomers().some(c=>c.natId===n))return err('يوجد ملف لهذا العميل بالفعل')}
+    $('pfSave').disabled=true;
+    try{const old=profileOf(n)||{};await ROOT.child('customers/'+n+'/profile').set({name,phone,email,company,empNo,at:old.at||Date.now(),updatedAt:Date.now(),by:session.name,byEmail:session.email});
+      log(natId?'تعديل ملف عميل':'إنشاء ملف عميل','','',`${name} (${n})`);toast(natId?'تم حفظ التعديل':'تم إنشاء ملف العميل');custModal(n)}
+    catch(e){$('pfSave').disabled=false;err('تعذر الحفظ: '+e.message)}}}
+async function deleteCustomer(natId){const c=buildCustomers().find(x=>x.natId===natId);if(!c)return;
+  if(c.list.length)return toast('لا يمكن حذف ملف عميل له حجوزات مسجلة (حتى الملغاة) لأنها جزء من السجل',true);
+  if(filesOf(natId).length)return toast('احذف مستندات العميل أولاً ثم احذف الملف',true);
+  if(!confirm(`حذف ملف العميل ${c.name} (${natId}) نهائياً مع سجل تحديثاته؟`))return;
+  try{await ROOT.child('customers/'+natId).remove();log('حذف ملف عميل','','',`${c.name} (${natId})`);toast('تم حذف ملف العميل');closeModal()}catch(e){toast('تعذر الحذف: '+e.message,true)}}
+function filesHtml(natId){const F=filesOf(natId),admin=session.role==='admin';
+  return `<div class="tblwrap">${F.length?`<table><thead><tr><th>النوع</th><th>الملف</th><th>الحجم</th><th>رفعه</th><th></th></tr></thead><tbody>${F.map(f=>`<tr><td><b>${esc(f.label||'أخرى')}</b></td><td class="mono" dir="ltr" style="text-align:right">${esc(f.name||'')}</td><td>${fmtSize(f.size)}</td><td><span class="muted">${fmtTime(f.at)} · ${esc(f.by||'')}</span></td><td style="white-space:nowrap"><button class="btn sec sm" data-fopen="${esc(f.id)}">فتح</button> ${(admin||f.byEmail===session.email)?`<button class="btn danger sm" data-fdel="${esc(f.id)}">حذف</button>`:''}</td></tr>`).join('')}</tbody></table>`:'<div class="muted" style="font-size:13px">لا توجد مستندات بعد</div>'}</div>
+    <div class="toolbar" style="margin-top:8px;align-items:center"><select id="cfLabel">${FILE_LABELS.map(l=>`<option>${l}</option>`).join('')}</select><input type="file" id="cfFile" accept="application/pdf,image/jpeg,image/png,image/webp" style="max-width:260px"><button class="btn sm" id="cfUp">رفع المستند</button><span class="muted" id="cfMsg" style="font-size:12px">PDF أو صورة، حتى 10 م.ب. تُحفظ في Google Drive الخاص بالنظام ويُسجَّل كل فتح وحذف.</span></div>`}
+function wireFiles(natId){const body=$('custModalBody');if(!body)return;
+  body.querySelectorAll('[data-fopen]').forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent='…';try{const r=await pledgeApi({action:'fileGet',natId,fid:b.dataset.fopen});const bin=atob(r.data);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);const url=URL.createObjectURL(new Blob([u8],{type:r.mime||'application/octet-stream'}));const w=window.open(url,'_blank');if(!w){const a=document.createElement('a');a.href=url;a.download=r.name||'file';a.click()}setTimeout(()=>URL.revokeObjectURL(url),60000)}catch(e){toast(e.message,true)}b.disabled=false;b.textContent='فتح'});
+  body.querySelectorAll('[data-fdel]').forEach(b=>b.onclick=async()=>{const f=filesOf(natId).find(x=>x.id===b.dataset.fdel);if(!confirm(`حذف المستند «${f?f.label+' · '+f.name:''}»؟`))return;b.disabled=true;try{await pledgeApi({action:'fileDelete',natId,fid:b.dataset.fdel});toast('تم حذف المستند')}catch(e){toast(e.message,true);b.disabled=false}});
+  const up=$('cfUp');if(up)up.onclick=async()=>{const f=$('cfFile').files[0];if(!f)return toast('اختر ملفاً أولاً',true);if(f.size>10*1024*1024)return toast('حجم الملف يتجاوز 10 ميجابايت',true);
+    up.disabled=true;$('cfMsg').textContent='جارٍ الرفع…';
+    try{const data=await new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(String(rd.result).split(',')[1]);rd.onerror=()=>rej(new Error('تعذر قراءة الملف'));rd.readAsDataURL(f)});
+      await pledgeApi({action:'fileUpload',natId,name:f.name,mime:f.type||'application/octet-stream',label:$('cfLabel').value,data});toast('تم رفع المستند')}
+    catch(e){toast(e.message,true);$('cfMsg').textContent=e.message;up.disabled=false}}}
 
 </script>
 </body>
