@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com https://script.google.com https://script.googleusercontent.com; frame-src https://jabeen-bookings.firebaseapp.com https://www.google.com https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+<meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <title>نظام حجوزات مشروع جبين</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -259,8 +261,9 @@ body.lgmode .lgfoot{display:block}
       <button class="btn" id="lgNameBtn" style="width:100%">متابعة</button>
     </div>
     <div class="err" id="lgErr"></div>
+    <div class="muted" style="font-size:12px;margin-top:12px;text-align:center"><a href="privacy.html" target="_blank" rel="noopener">سياسة الخصوصية ومعالجة البيانات</a></div>
   </div>
-  <div class="lgfoot">نظام حجوزات مشروع جبين · ينبع الصناعية</div>
+  <div class="lgfoot">نظام حجوزات مشروع جبين · ينبع الصناعية · <a href="privacy.html" target="_blank" rel="noopener" style="color:inherit">سياسة الخصوصية</a></div>
 
   <!-- APP -->
   <div id="appView" class="hidden">
@@ -311,7 +314,7 @@ body.lgmode .lgfoot{display:block}
           <div class="f"><label>الشركة <span class="req">*</span></label><input id="fCompany" list="companyList" placeholder="اكتب اسم الشركة أو اختر من المقترحات" autocomplete="off"><datalist id="companyList"></datalist><div class="err" id="compErr"></div></div>
           <div class="f"><label>الرقم الوظيفي</label><input id="fEmp" inputmode="numeric" autocomplete="off"></div>
           <div class="f"><label>رقم الجوال</label><input id="fPhone" inputmode="tel" maxlength="10" placeholder="05xxxxxxxx" autocomplete="off"><div class="err" id="phoneErr"></div></div>
-          <div class="f"><label>البريد الإلكتروني للعميل <span class="req" id="emailReq" style="display:none">*</span></label><input id="fEmail" type="email" dir="ltr" placeholder="name@example.com" autocomplete="off"><div class="err" id="emailErr"></div><div class="muted" id="emailHint" style="font-size:12px;margin-top:4px;display:none">يُرسل إليه الإقرار والتعهد ورمز التحقق. راجع صحته مع العميل.</div></div>
+          <div class="f"><label>البريد الإلكتروني للعميل <span class="req" id="emailReq" style="display:none">*</span></label><input id="fEmail" type="email" dir="ltr" placeholder="name@example.com" autocomplete="off"><div class="err" id="emailErr"></div><div class="muted" id="emailHint" style="font-size:12px;margin-top:4px;display:none">يُرسل إليه الإقرار والتعهد ورمز التحقق. راجع صحته مع العميل.</div><div class="muted" style="font-size:12px;margin-top:4px">بيانات العميل تُحفظ وتُعالج لغرض الحجز فقط وفق <a href="privacy.html" target="_blank" rel="noopener">سياسة الخصوصية</a>. أبلغ العميل بذلك قبل التسجيل.</div></div>
           <div class="f"><label>طريقة الدفع <span class="req">*</span></label><select id="fPay"><option value="">— اختر —</option></select></div>
           <div class="f"><label>تاريخ الحجز <span class="req">*</span></label><input id="fDate" type="date"></div>
           <div class="f" style="grid-column:1/-1"><label>ملاحظات</label><textarea id="fNotes" rows="2"></textarea></div>
@@ -499,11 +502,12 @@ body.lgmode .lgfoot{display:block}
 <div id="modalHost"></div>
 <div class="toast" id="toast"></div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" integrity="sha384-AQ3POAMqIhwS81FrUH95ekxqBZHeP5tG2JfEL3+7GuTtfRLWnrRh32UxwzM+//A9" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" integrity="sha384-1/m+A1jVWbD3yiK3/vtFvm1+LjK1WLpSoDY+Kaxppwn/yP9BVSgdHTNQVOjrzUO5" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js" integrity="sha384-E3vxFxXu8FhW5kvqdQJ5Yf8ugrV7iCJP8jgnItRH2Rk8Q08cJzJGTi/oMC3FEp3j" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" integrity="sha384-TnlRYaR4JYz/lpaGuaiU61PjNberSA4vjLjtF+oRC/IkohkJqnWxw5EmDSOt1vA1" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
 <script>
 /* ===== MASTER DATA: loaded from the protected database after sign-in (not shipped in the page) ===== */
 let MASTER=[], MASTER_BY_ID={}, BASE_COMPANIES=[], MODELS=[], DIST_IN_MASTER=[];
@@ -537,6 +541,8 @@ firebase.initializeApp({
   databaseURL:"https://jabeen-bookings-default-rtdb.europe-west1.firebasedatabase.app",
   appId:"1:770648113318:web:be1ab6ef9426eb074eb467"
 });
+const APP_CHECK_KEY='__APPCHECK__'; // مفتاح reCAPTCHA v3 العام (ليس سراً)؛ يثبت أن الطلبات صادرة من هذا الموقع
+if(APP_CHECK_KEY&&!/^__/.test(APP_CHECK_KEY)){try{firebase.appCheck().activate(APP_CHECK_KEY,true)}catch(e){console.warn('App Check',e)}}
 const db = firebase.database();
 const ROOT = db.ref('jabeenBookings');
 
@@ -573,7 +579,7 @@ const PLEDGE_CITY='ينبع الصناعية';
 function fillPledge(t,b){if(!b)return t;const m={'الاسم الكامل':b.name,'رقم الهوية':b.natId,'رقم الجوال':b.phone,'رقم الوحدة':b.unitId,'النموذج':b.model,'اسم الحي':b.district,'المدينة':PLEDGE_CITY,'السعر':fmt(b.price)};return String(t||'').replace(/\(([^()]+)\)/g,(x,k)=>m[k.trim()]!=null&&m[k.trim()]!==''?String(m[k.trim()]):x)}
 const pledgeOn=()=>!!(config.pledge&&config.pledge.enabled);
 const pledgeOf=bid=>pledges[bid]||null;
-function canBypassPledge(){if(session.email===SUPER_ADMIN)return true;const u=users[emailKey(session.email)];return !!(u&&u.bypassPledge)}
+function canBypassPledge(){if(isSuper(session.email))return true;const u=users[emailKey(session.email)];return !!(u&&u.bypassPledge)}
 const isPledged=bid=>{const p=pledgeOf(bid);return !!(p&&p.state==='confirmed')};
 function pledgeBadge(bid,b){const p=pledgeOf(bid);
   if(p&&p.state==='confirmed')return `<span class="st pledged" title="تم تأكيد الإقرار والتعهد ${fmtTime(p.confirmedAt)}">متعهّد ✓</span>`;
@@ -628,7 +634,7 @@ function showDbError(e){
   }
 }
 /* ===== Auth: one-time email link, no saved session ===== */
-const SUPER_ADMIN='s2.daho0ome.s2@gmail.com';
+const isSuper=e=>{const u=users[emailKey(e||'')];return !!(u&&u.super)}; // المدير الرئيسي يُحدد بعلامة super في سجل المستخدمين (تُضبط من لوحة Firebase فقط)
 const IDLE_MS=30*60*1000;
 const KEEP_SESSION=true; // مؤقت أثناء التطوير: الجلسة تبقى بعد تحديث الصفحة وبدون مهلة خمول. أعده إلى false لاستعادة الحماية الكاملة.
 const auth=firebase.auth(); auth.languageCode='ar';
@@ -671,7 +677,7 @@ auth.onAuthStateChanged(async user=>{
   const email=String(user.email||'').toLowerCase();
   let rec=null;
   if(user.emailVerified){try{rec=(await ROOT.child('users/'+emailKey(email)).once('value')).val()}catch(e){rec=null}}
-  if(user.emailVerified&&email===SUPER_ADMIN)rec={...(rec||{}),role:'admin'};
+  if(rec&&rec.super)rec.role='admin';
   if(!rec||!['maker','checker','admin'].includes(rec.role)){await auth.signOut();lgShow('lgStep1');lgErr('هذا البريد غير مصرح له بالدخول.');return}
   me={email,key:emailKey(email),rec};
   if(!rec.name){lgShow('lgStepName');lgErr('');return}
@@ -1159,9 +1165,8 @@ $('saveMail').onclick=async()=>{const old=mailCfg(),now=Date.now(),since={...(ol
 function applyPledgeForm(){const on=pledgeOn();$('emailReq').style.display=on?'':'none';$('emailHint').style.display=on?'':'none'}
 function fillAdminLists(){if($('listPay'))$('listPay').value=payMethods().join('\n');if($('listCompanies'))$('listCompanies').value=extraCompanies().join('\n');if($('sheetUrl'))$('sheetUrl').value=(config.lists&&config.lists.sheetWebApp)||''}
 function renderUsers(){
-  const rows=Object.entries(users).filter(([k,u])=>u&&u.role).map(([k,u])=>({k,email:u.email||k.replace(/,/g,'.'),name:u.name||'',role:u.role,bypass:!!u.bypassPledge}));
-  if(!rows.some(r=>r.email===SUPER_ADMIN))rows.unshift({k:emailKey(SUPER_ADMIN),email:SUPER_ADMIN,name:'',role:'admin'});
-  $('usersBody').innerHTML=rows.sort((a,b)=>a.email.localeCompare(b.email)).map(r=>`<tr><td class="mono" dir="ltr">${esc(r.email)}</td><td>${esc(r.name)}</td><td>${r.email===SUPER_ADMIN?'مدير رئيسي':esc(ROLE_AR[r.role]||r.role)}</td><td style="text-align:center"><input type="checkbox" data-bypass="${esc(r.k)}" ${r.bypass?'checked':''} ${r.email===SUPER_ADMIN?'disabled checked':''}></td><td>${r.email===SUPER_ADMIN||r.email===session.email?'':`<button class="btn danger sm" data-del="${esc(r.k)}">حذف</button>`}</td></tr>`).join('');
+  const rows=Object.entries(users).filter(([k,u])=>u&&u.role).map(([k,u])=>({k,email:u.email||k.replace(/,/g,'.'),name:u.name||'',role:u.role,bypass:!!u.bypassPledge,sup:!!u.super}));
+  $('usersBody').innerHTML=rows.sort((a,b)=>a.email.localeCompare(b.email)).map(r=>`<tr><td class="mono" dir="ltr">${esc(r.email)}</td><td>${esc(r.name)}</td><td>${r.sup?'مدير رئيسي':esc(ROLE_AR[r.role]||r.role)}</td><td style="text-align:center"><input type="checkbox" data-bypass="${esc(r.k)}" ${r.bypass?'checked':''} ${r.sup?'disabled checked':''}></td><td>${r.sup||r.email===session.email?'':`<button class="btn danger sm" data-del="${esc(r.k)}">حذف</button>`}</td></tr>`).join('');
 }
 $('usersBody').addEventListener('change',async e=>{const k=e.target&&e.target.dataset&&e.target.dataset.bypass;if(!k)return;
   const on=e.target.checked;try{await ROOT.child('users/'+k+'/bypassPledge').set(on);log('صلاحية الاعتماد بدون تعهد','','',`${(users[k]&&users[k].email)||k}: ${on?'مُنحت':'سُحبت'}`);toast(on?'يستطيع الاعتماد بدون تعهد':'يلزمه التعهد قبل الاعتماد')}catch(err){toast('تعذر الحفظ: '+err.message,true);e.target.checked=!on}});
@@ -1171,7 +1176,7 @@ $('usersBody').addEventListener('click',async e=>{const k=e.target&&e.target.dat
   await ROOT.child('users/'+k).remove();log('حذف مستخدم','','',em);toast('تم حذف المستخدم')});
 $('addUser').onclick=async()=>{const em=$('usrEmail').value.trim().toLowerCase(),name=$('usrName').value.trim(),role=$('usrRole').value;
   if(!validEmail(em))return toast('اكتب بريد صحيح',true);
-  if(em===SUPER_ADMIN)return toast('المدير الرئيسي ثابت',true);
+  if(isSuper(em))return toast('المدير الرئيسي ثابت',true);
   const k=emailKey(em);const old=users[k]||{};
   await ROOT.child('users/'+k).set({email:em,name:name||old.name||'',role,addedBy:session.email,addedAt:Date.now()});
   log(old.role?'تحديث مستخدم':'إضافة مستخدم','','',`${em} · ${ROLE_AR[role]}`);$('usrEmail').value='';$('usrName').value='';toast('تم الحفظ')};
