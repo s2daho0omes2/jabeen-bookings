@@ -219,6 +219,16 @@ body.lgmode .lgfoot{display:block}
 @media (max-width:640px){.card{padding:18px 16px;border-radius:18px}.tab{padding:8px 12px;font-size:14px}
 .combo .list{max-height:150px;border-radius:10px}.combo .opt{padding:7px 10px;font-size:14px;align-items:center}.combo .opt span{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 @media print{.topbar,.tabs,.toolbar,.actions,.btn{display:none!important}.card{box-shadow:none;border:1px solid #ccc}}
+.drop{display:block;border:2px dashed var(--line);border-radius:14px;padding:26px;text-align:center;cursor:pointer;background:var(--soft)}
+.drop.over{border-color:var(--green);background:var(--active)}
+.modal.wide{max-width:780px}
+.cmp{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+.cmp th,.cmp td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;vertical-align:top}
+.cmp thead th{color:var(--muted);font-weight:700}.cmp tbody th{font-weight:700;white-space:nowrap;width:1%}
+.cmp tr.diff td{background:var(--amber-bg);font-weight:700}
+.skt{display:inline-block;border-radius:999px;padding:2px 12px;font-size:13px;font-weight:800}
+.skt.red{background:var(--red-bg);color:var(--red)}.skt.amber{background:var(--amber-bg);color:var(--amber)}.skt.ok{background:var(--ok-bg);color:var(--ok)}.skt.blue{background:#e0ecff;color:#1d4ed8}
+:root[data-theme="dark"] .skt.blue{background:#1e2a44;color:#9db7ff}
 </style>
 </head>
 <body class="lgmode">
@@ -271,6 +281,7 @@ body.lgmode .lgfoot{display:block}
       <button class="tab active" data-tab="new">حجز جديد</button>
       <button class="tab" data-tab="bookings">الحجوزات <span class="badge hidden" id="pendBadge"></span></button>
       <button class="tab" data-tab="customers">العملاء</button>
+      <button class="tab hidden" data-tab="sakani" id="sakaniTab">مطابقة سكني</button>
       <button class="tab hidden" data-tab="units">الوحدات (الماستر)</button>
       <button class="tab" data-tab="map">الخريطة</button>
       <button class="tab" data-tab="dash">لوحة المؤشرات</button>
@@ -386,6 +397,17 @@ body.lgmode .lgfoot{display:block}
     </section>
 
     <!-- MAP -->
+    <section id="tab-sakani" class="hidden">
+      <div class="card">
+        <h3>مطابقة ملف سكني</h3>
+        <div class="muted" style="font-size:13px;margin-bottom:10px">ارفع تقرير «Bookings And Units» كما يصدر من بوابة سكني (Excel). يُقرأ الملف داخل متصفحك فقط ولا يُرفع إلى أي خادم، ثم يُقارن بوحدات الموقع وحجوزاته، وتُعرض التعارضات واحداً تلو الآخر لاتخاذ القرار. كود المنتج في سكني هو كود الوحدة المعتمد، ويُثبَّت على وحدات الموقع تلقائياً.</div>
+        <div class="kv" style="font-size:13px;margin:6px 0 12px"><div>العزيزية</div><div class="mono">02-03-0028</div><div>النخيل</div><div class="mono">02-03-0029</div><div>رقم الأرض</div><div>= رقم القطعة في الموقع</div></div>
+        <label class="drop" id="skDrop"><input type="file" id="skFile" accept=".xlsx,.xls,.csv" class="hidden"><b>اختر ملف Excel</b> أو اسحبه وأفلته هنا</label>
+        <div id="skInfo" class="muted" style="font-size:13px;margin-top:10px"></div>
+        <div class="actions" id="skActions" style="display:none"><button class="btn" id="skReview">مراجعة التعارضات</button><button class="btn sec" id="skExport">تصدير النتيجة Excel</button></div>
+      </div>
+      <div class="card"><h3>القرارات السابقة</h3><div class="muted" style="font-size:13px;margin-bottom:8px">التعارضات المؤجَّلة تظهر مجدداً في المطابقة القادمة، والمتجاهَلة نهائياً تُخفى ما دامت بياناتها لم تتغير.</div><div id="skDecList" class="muted" style="font-size:13px">—</div><div id="skLast" class="muted" style="font-size:12px;margin-top:8px"></div></div>
+    </section>
     <section id="tab-map" class="hidden">
       <div class="card">
         <h2>خريطة الوحدات</h2>
@@ -515,6 +537,12 @@ const COMPANY_COLOR={};
 const DISTRICTS={AZ:'العزيزية',NK:'النخيل',BT:'البثنة',NW:'النواة',JB:'الجابرية'}; // رموز الأحياء الخمسة
 const DISTRICT_CODE=Object.fromEntries(Object.entries(DISTRICTS).map(([k,v])=>[v,k]));
 const UNALLOC='غير مخصصة';
+const SK_PROJECT_OF={'العزيزية':'02-03-0028','النخيل':'02-03-0029'}; // أكواد مشاريع سكني لكل حي
+const SK_PROJECTS=Object.fromEntries(Object.entries(SK_PROJECT_OF).map(([d,p])=>[p,DISTRICT_CODE[d]]));
+function skCode(uid){const u=MASTER_BY_ID[uid];if(u&&u.sakaniCode)return u.sakaniCode;const d=u?u.district:DISTRICTS[String(uid||'').slice(0,2)];const p=SK_PROJECT_OF[d];const n=parseInt(String(uid||'').split('-')[1],10);return p&&n?p+'-'+String(n).padStart(10,'0'):''} // كود الوحدة المعتمد (سكني)
+function unitLbl(uid){const c=skCode(uid);return c?`<b class="mono">${esc(c)}</b><div class="muted" style="font-size:11px">${esc(uid)}</div>`:`<b>${esc(uid)}</b>`}
+function unitSpan(uid){const c=skCode(uid);return c?`<b class="mono">${esc(c)}</b> <span class="muted">(${esc(uid)})</span>`:`<b>${esc(uid)}</b>`}
+function unitTxt(uid){const c=skCode(uid);return c?`${c} (${uid})`:String(uid||'')}
 let COMPANIES = [];
 const EXTRA_COLORS=['#8e44ad','#e67e22','#16a085','#c0392b','#2c3e50','#d35400','#7f8c8d'];
 let addedCompanies={};
@@ -594,7 +622,7 @@ async function pledgeApi(payload){const url=config.lists&&config.lists.sheetWebA
 function pledgeModal(bid){const b=bookings[bid];if(!b)return;const p=pledgeOf(bid);const conf=p&&p.state==='confirmed';
   const sent=p&&p.state==='sent'&&p.expiresAt>Date.now();
   let h=`<h3>الإقرار والتعهد — حجز ${esc(b.refNo||'')}</h3><div class="kv">
-    <div>العميل</div><div>${esc(b.name)}</div><div>الوحدة</div><div><b>${esc(b.unitId)}</b> · ${esc(b.district)} · بلوك ${esc(b.block)} · ${esc(b.model)}</div>
+    <div>العميل</div><div>${esc(b.name)}</div><div>الوحدة</div><div>${unitSpan(b.unitId)} · ${esc(b.district)} · بلوك ${esc(b.block)} · ${esc(b.model)}</div>
     <div>بريد العميل</div><div dir="ltr" style="text-align:right"><span class="mono" id="plEmailShow">${esc(b.email||'—')}</span> ${conf?'':`<button class="btn sec sm" id="plEditEmail">تعديل</button>`}</div>
     <div>الحالة</div><div id="plState">${conf?`<span class="st pledged">تم تأكيد الإقرار والتعهد</span> · ${fmtTime(p.confirmedAt)} · بواسطة ${esc(p.by||'')} · الإصدار ${p.version}`:sent?`<span class="st sent">أُرسل الرمز</span> · صالح حتى ${fmtTime(p.expiresAt)} · أُرسل ${fmtTime(p.sentAt)}`:'لم يُرسل بعد'}</div></div>`;
   if(conf)h+=`<div class="pledge-box" style="margin-top:10px">${esc(p.text||'')}</div><div class="actions"><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;
@@ -699,7 +727,7 @@ if(auth.isSignInWithEmailLink(location.href)){
 function enterApp(){
   document.body.classList.remove('lgmode');$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');
   $('rolePill').classList.remove('hidden');$('rolePill').textContent=`${ROLE_AR[session.role]} · ${session.name}`;$('rolePill').title=session.email;
-  if(session.role==='admin')$('adminTab').classList.remove('hidden');
+  if(session.role==='admin'){$('adminTab').classList.remove('hidden');$('sakaniTab').classList.remove('hidden')}
   initMap();renderAll();startData();
 }
 
@@ -724,7 +752,7 @@ function renderAll(){renderStats();refreshUnitCombo();checkSelectedUnit();checkN
 /* ===== Tabs ===== */
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
 function switchTab(name){document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
-  ['new','bookings','customers','units','map','dash','exceptions','admin'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));if(name==='dash')renderDash()}
+  ['new','bookings','customers','sakani','units','map','dash','exceptions','admin'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));if(name==='dash')renderDash();if(name==='sakani')skInit()}
 
 /* ===== Stats ===== */
 function renderStats(){
@@ -867,7 +895,7 @@ $('submitBtn').onclick=async()=>{
   log('إنشاء حجز مبدئي',u.id,bid,`${refNo} — ${booking.name}`);
   toast(`تم تسجيل الحجز ${refNo}`);resetForm();if(mailCfg().welcome&&booking.email)notifyMail('welcome',bid);
   showModal(`<h3>تم تسجيل الحجز المبدئي</h3><div class="banner ok" style="font-size:26px;justify-content:center;letter-spacing:1px">${refNo}</div>
-    <div class="kv"><div>الوحدة</div><div><b>${esc(u.id)}</b> · ${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model}</div><div>العميل</div><div>${esc(booking.name)}</div><div>الهوية</div><div class="mono">${esc(natId)}</div><div>الشركة</div><div>${esc(booking.company)}</div><div>السعر</div><div>${fmt(u.price)} ر.س</div><div>الحالة</div><div><span class="st pending">مبدئي</span> بانتظار اعتماد المراجع</div></div>
+    <div class="kv"><div>الوحدة</div><div>${unitSpan(u.id)} · ${esc(u.district)} · بلوك ${u.block} · نموذج ${u.model}</div><div>العميل</div><div>${esc(booking.name)}</div><div>الهوية</div><div class="mono">${esc(natId)}</div><div>الشركة</div><div>${esc(booking.company)}</div><div>السعر</div><div>${fmt(u.price)} ر.س</div><div>الحالة</div><div><span class="st pending">مبدئي</span> بانتظار اعتماد المراجع</div></div>
     <p class="muted" style="font-size:13px">أعطِ العميل كود الحجز هذا؛ هو المرجع في أي مراجعة أو استفسار.</p>
     <div class="actions">${pledgeOn()?`<button class="btn" onclick="pledgeModal('${bid}')">إرسال التعهد للعميل</button>`:''}<button class="btn ${pledgeOn()?'sec':''}" onclick="navigator.clipboard&&navigator.clipboard.writeText('${refNo}');toast('تم نسخ الكود')">نسخ الكود</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`);
 };
@@ -886,7 +914,7 @@ function filteredBookings(){const q=$('bSearch').value.trim().toLowerCase(),st=$
   return Object.entries(bookings).map(([bid,b])=>({bid,...b})).filter(b=>(!st||b.status===st)&&(!c||b.company===c)&&(!q||[b.refNo,b.name,b.natId,b.unitId,b.plot,b.empNo,b.phone,b.maker].some(v=>String(v||'').toLowerCase().includes(q)))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
 function renderBookings(){
   const rows=filteredBookings();$('bCount').textContent=`${rows.length} حجز`;
-  $('bBody').innerHTML=rows.map((b,i)=>`<tr><td>${i+1}</td><td class="mono"><b>${esc(b.refNo||'')}</b></td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.block)}</td><td>${esc(b.model)}</td><td>${esc(b.company)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td class="mono">${esc(b.phone)}</td><td>${esc(b.payMethod)}</td><td>${esc(b.bookingDate)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${pledgeBadge(b.bid,b)}</td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:220px">${esc(b.rejectReason)}</div>`:''}</td><td>${actionsFor(b)}</td></tr>`).join('')||'<tr><td colspan="17" class="muted">لا توجد حجوزات</td></tr>';
+  $('bBody').innerHTML=rows.map((b,i)=>`<tr><td>${i+1}</td><td class="mono"><b>${esc(b.refNo||'')}</b></td><td>${unitLbl(b.unitId)}</td><td>${esc(b.district)}</td><td>${esc(b.block)}</td><td>${esc(b.model)}</td><td>${esc(b.company)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td class="mono">${esc(b.phone)}</td><td>${esc(b.payMethod)}</td><td>${esc(b.bookingDate)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${pledgeBadge(b.bid,b)}</td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:220px">${esc(b.rejectReason)}</div>`:''}</td><td>${actionsFor(b)}</td></tr>`).join('')||'<tr><td colspan="17" class="muted">لا توجد حجوزات</td></tr>';
   $('bBody').querySelectorAll('[data-act]').forEach(btn=>btn.onclick=()=>doAction(btn.dataset.act,btn.dataset.bid));
 }
 function isMine(b){return b.makerEmail?b.makerEmail===session.email:b.maker===session.name}
@@ -899,7 +927,7 @@ function actionsFor(b){const r=session.role;let h=`<button class="btn sec sm" da
 async function doAction(act,bid){
   const b=bookings[bid];if(!b)return;
   if(act==='pledge')return pledgeModal(bid);
-  if(act==='view')return showModal(`<h3>حجز ${esc(b.refNo||'')} — الوحدة ${esc(b.unitId)}</h3><div class="kv">
+  if(act==='view')return showModal(`<h3>حجز ${esc(b.refNo||'')} — الوحدة ${unitSpan(b.unitId)}</h3><div class="kv">
     <div>الحالة</div><div><span class="st ${b.status}">${STATUS_AR[b.status]}</span></div><div>الحي / البلوك / النموذج</div><div>${esc(b.district)} · ${esc(b.block)} · ${esc(b.model)}</div><div>الشركة</div><div>${esc(b.company)}</div><div>السعر</div><div>${fmt(b.price)} ر.س</div>
     <div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId)}</div><div>الرقم الوظيفي</div><div>${esc(b.empNo)}</div><div>الجوال</div><div class="mono">${esc(b.phone)}</div><div>البريد</div><div class="mono" dir="ltr" style="text-align:right">${esc(b.email||'—')}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>ملاحظات</div><div>${esc(b.notes)}</div><div>التعهد</div><div>${pledgeBadge(bid,b)||'—'}${isPledged(bid)?' · '+fmtTime(pledgeOf(bid).confirmedAt)+' · بواسطة '+esc(pledgeOf(bid).by||''):''}</div>
     <div>المُدخل</div><div>${esc(b.maker)} · ${fmtTime(b.createdAt)}</div><div>المُراجع</div><div>${esc(b.checker||'—')} ${b.checkedAt?'· '+fmtTime(b.checkedAt):''}</div>${b.rejectReason?`<div>السبب</div><div>${esc(b.rejectReason)}</div>`:''}<div>المصدر</div><div>${esc(b.source||'')}</div></div>
@@ -922,8 +950,8 @@ async function doAction(act,bid){
 }
 function showModal(html,cls){$('modalHost').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal ${cls||''}">${html}</div></div>`}
 function closeModal(){$('modalHost').innerHTML='';custOpen=null}
-$('bExport').onclick=()=>csv('الحجوزات',['كود الحجز','الوحدة','الحي','البلوك','النموذج','الشركة','السعر','العميل','الهوية','الرقم الوظيفي','الجوال','طريقة الدفع','تاريخ الحجز','الحالة','المُدخل','المُراجع','سبب','ملاحظات','وقت الإدخال'],
-  filteredBookings().map(b=>[b.refNo,b.unitId,b.district,b.block,b.model,b.company,b.price,b.name,b.natId,b.empNo,b.phone,b.payMethod,b.bookingDate,STATUS_AR[b.status],b.maker,b.checker,b.rejectReason,b.notes,fmtTime(b.createdAt)]));
+$('bExport').onclick=()=>csv('الحجوزات',['كود الحجز','كود الوحدة (سكني)','الوحدة','الحي','البلوك','النموذج','الشركة','السعر','العميل','الهوية','الرقم الوظيفي','الجوال','طريقة الدفع','تاريخ الحجز','الحالة','المُدخل','المُراجع','سبب','ملاحظات','وقت الإدخال'],
+  filteredBookings().map(b=>[b.refNo,skCode(b.unitId),b.unitId,b.district,b.block,b.model,b.company,b.price,b.name,b.natId,b.empNo,b.phone,b.payMethod,b.bookingDate,STATUS_AR[b.status],b.maker,b.checker,b.rejectReason,b.notes,fmtTime(b.createdAt)]));
 
 /* ===== Customers ===== */
 let customers={};   // natId -> {notes:{id:{at,by,byEmail,text}}}
@@ -968,7 +996,7 @@ function renderCustomers(){
     <div class="ch"><div class="av">${esc((c.name.trim()[0]||'؟'))}</div><div class="cn"><b title="${esc(c.name)}">${esc(c.name)}</b><div class="mono muted">${esc(c.natId)}</div></div><span style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">${custStateBadge(c)}${sakaniChip(c)}${signChip(c)}</span></div>
     <div class="cr"><span>الجوال</span><span class="mono">${esc(c.phone||'—')}</span></div>
     <div class="cr"><span>الشركة</span><span>${esc(c.company||'—')}</span></div>
-    <div class="cr"><span>الوحدة</span><span>${c.active?`<b>${esc(c.active.unitId)}</b> · ${esc(c.active.district)} · ${esc(c.active.model)}`:'<span class="muted">لا توجد وحدة نشطة</span>'}</span></div>
+    <div class="cr"><span>الوحدة</span><span>${c.active?`${unitSpan(c.active.unitId)} · ${esc(c.active.district)} · ${esc(c.active.model)}`:'<span class="muted">لا توجد وحدة نشطة</span>'}</span></div>
     ${c.active?`<div class="cr"><span>منذ الحجز</span><span><b>${daysLabel(daysSince(bDate(c.active)))}</b> <span class="muted">(${esc(bDate(c.active))})</span></span></div>`:''}
     <div class="cf"><span>${c.list.length} حجز</span><span>${c.notes.length} تحديث</span><span class="sp"></span><span>${fmtTime(c.last)}</span></div></div>`).join('')||'<div class="muted">لا يوجد عملاء مطابقون</div>';
   $('cCards').querySelectorAll('.ccard').forEach(el=>el.onclick=()=>custModal(el.dataset.nat));
@@ -980,14 +1008,14 @@ function custModal(natId,keep){
   custOpen=natId;const a=c.active;const admin=session.role==='admin';
   const h=`<div id="custModalBody"><h3>${esc(c.name)} <span class="mono muted" style="font-size:14px;font-weight:400">${esc(c.natId)}</span> ${custStateBadge(c)}</h3>
     <div class="kv"><div>الجوال</div><div class="mono">${esc(c.phone||'—')}</div><div>البريد</div><div class="mono" dir="ltr" style="text-align:right">${esc(c.email||'—')}</div><div>الشركة</div><div>${esc(c.company||'—')}</div><div>الرقم الوظيفي</div><div>${esc(c.empNo||'—')}</div>
-      <div>الحجز النشط</div><div>${a?`<b class="mono">${esc(a.refNo||'')}</b> · الوحدة <b>${esc(a.unitId)}</b> · ${esc(a.district)} · بلوك ${esc(a.block)} · ${esc(a.model)} · ${fmt(a.price)} ر.س`:'<span class="muted">لا يوجد</span>'}</div>
+      <div>الحجز النشط</div><div>${a?`<b class="mono">${esc(a.refNo||'')}</b> · الوحدة ${unitSpan(a.unitId)} · ${esc(a.district)} · بلوك ${esc(a.block)} · ${esc(a.model)} · ${fmt(a.price)} ر.س`:'<span class="muted">لا يوجد</span>'}</div>
       <div>التعهد</div><div>${a?(pledgeBadge(a.bid,a)||'—')+(isPledged(a.bid)?' · '+fmtTime(pledgeOf(a.bid).confirmedAt):''):'—'}</div>
       ${a?`<div>منذ الحجز</div><div><b>${daysLabel(daysSince(bDate(a)))}</b> <span class="muted">من ${esc(bDate(a))}</span></div><div>سكني</div><div>${c.sakani?`<span class="sk ok">مسجَّل في سكني ✓</span> · ${fmtTime(c.sakani.at)} · بواسطة ${esc(c.sakani.by||'')}`:`<span class="sk wait">بانتظار عكس الحجز في سكني ⏳</span>`}</div>
       <div>عرض السعر وتوثيق العقد</div><div>${c.signed?`<span class="sk ok">وقّع العميل عرض السعر ووثّق العقد ✓</span> · ${fmtTime(c.signed.at)} · بواسطة ${esc(c.signed.by||'')}`:(()=>{const si=signInfo(c);return (si&&si.remaining<0?`<span class="sk late">انتهت مهلة التوقيع ⚠️</span>`:`<span class="sk sign">بانتظار التوقيع 📝</span>`)+(si?` · ${si.remaining<0?'انتهت المهلة في':'متبقٍ '+daysLabel(si.remaining)+' · آخر موعد'} ${si.deadline} <span class="muted">(${SIGN_DAYS()} يوماً من التسجيل في سكني ${si.from})</span>`:` · <span class="muted">مهلة ${SIGN_DAYS()} يوماً تبدأ عند التسجيل في سكني</span>`)})()}</div>`:''}</div>
     ${a?`<div class="actions" style="margin-top:4px"><button class="btn sm ${c.sakani?'sec':''}" id="cSakani">${c.sakani?'إلغاء تأكيد سكني':'تم عكس الحجز في سكني ✓'}</button><button class="btn sm ${c.signed?'sec':''}" id="cSigned">${c.signed?'إلغاء تأكيد التوقيع':'العميل وقّع عرض السعر ووثّق العقد ✓'}</button><button class="btn sec sm" onclick="doAction('view','${a.bid}')">عرض الحجز</button>${(pledgeOn()||pledgeOf(a.bid))?`<button class="btn sm ${isPledged(a.bid)?'sec':''}" onclick="pledgeModal('${a.bid}')">${isPledged(a.bid)?'التعهد ✓':'التعهد'}</button>`:''}</div>`:''}
     <h4>الحجوزات (${c.list.length})</h4>
     <div class="tblwrap"><table><thead><tr><th>كود الحجز</th><th>الوحدة</th><th>الحي</th><th>النموذج</th><th>السعر</th><th>تاريخ الحجز</th><th>منذ</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th></th></tr></thead><tbody>
-    ${c.list.map(b=>`<tr><td class="mono"><b>${esc(b.refNo||'')}</b></td><td class="mono"><b>${esc(b.unitId)}</b></td><td>${esc(b.district)}</td><td>${esc(b.model)}</td><td>${fmt(b.price)}</td><td>${esc(bDate(b))}</td><td>${daysLabel(daysSince(bDate(b)))}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span>${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:200px">${esc(b.rejectReason)}</div>`:''}</td><td>${esc(b.maker||'')}</td><td>${esc(b.checker||'')}</td><td><button class="btn sec sm" onclick="doAction('view','${b.bid}')">عرض</button></td></tr>`).join('')}</tbody></table></div>
+    ${c.list.map(b=>`<tr><td class="mono"><b>${esc(b.refNo||'')}</b></td><td>${unitLbl(b.unitId)}</td><td>${esc(b.district)}</td><td>${esc(b.model)}</td><td>${fmt(b.price)}</td><td>${esc(bDate(b))}</td><td>${daysLabel(daysSince(bDate(b)))}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span>${b.rejectReason?`<div class="muted" style="font-size:12px;white-space:normal;max-width:200px">${esc(b.rejectReason)}</div>`:''}</td><td>${esc(b.maker||'')}</td><td>${esc(b.checker||'')}</td><td><button class="btn sec sm" onclick="doAction('view','${b.bid}')">عرض</button></td></tr>`).join('')}</tbody></table></div>
     <h4>سجل الرسائل (${(()=>{const n=c.list.flatMap(b=>Object.values(mailLog[b.bid]||{})).length;return n})()})</h4>
     <div class="ml">${c.list.flatMap(b=>Object.values(mailLog[b.bid]||{}).map(m=>({...m,refNo:b.refNo}))).sort((x,y)=>(y.at||0)-(x.at||0)).map(m=>`<div class="mli"><b>${esc(MAIL_TYPE_AR[m.type]||m.type)}</b><span class="st ${m.status==='sent'?'available':'rejected'}">${m.status==='sent'?'أُرسلت ✓':'فشلت ✗'}</span><span class="mono" dir="ltr">${esc(m.to||'')}</span><span class="muted">${fmtTime(m.at)} · ${esc(m.by||'')} · ${esc(m.refNo||'')}</span>${m.error?`<span class="muted" style="color:var(--red)">${esc(m.error)}</span>`:''}</div>`).join('')||'<div class="muted" style="font-size:13px">لم تُرسل رسائل آلية لهذا العميل بعد</div>'}</div>
     <h4>المستندات</h4><div class="muted" style="font-size:13px">رفع ملفات العميل (الهوية، تعريف الراتب، خطاب التمويل، العقد…) يُضاف في مرحلة لاحقة.</div>
@@ -1026,8 +1054,8 @@ async function addCustNote(natId){
     log('تحديث على ملف عميل',c&&c.active?c.active.unitId:'',c&&c.active?c.active.bid:'',`${c?c.name:natId} — ${t.slice(0,80)}`);if(el)el.value='';toast('أُضيف التحديث')}
   catch(e){toast(/permission/i.test(String(e&&e.message))?'ليس لديك صلاحية إضافة تحديث — يلزم تحديث قواعد قاعدة البيانات':String(e&&e.message||e),true);if($('cNoteAdd'))$('cNoteAdd').disabled=false}
 }
-$('cExport').onclick=()=>csv('العملاء',['الاسم','الهوية','الجوال','البريد','الشركة','الرقم الوظيفي','الحالة','سكني','توقيع العرض وتوثيق العقد','كود الحجز النشط','الوحدة','الحي','النموذج','السعر','تاريخ الحجز','أيام منذ الحجز','عدد الحجوزات','عدد التحديثات','آخر تحديث'],
-  filteredCustomers(buildCustomers()).map(c=>[c.name,c.natId,c.phone,c.email,c.company,c.empNo,CUST_STATE[c.state],c.active?(c.sakani?'مسجَّل':'بانتظار التسجيل'):'',c.active?(c.signed?'موقّع وموثّق':'بانتظار التوقيع'):'',c.active?c.active.refNo:'',c.active?c.active.unitId:'',c.active?c.active.district:'',c.active?c.active.model:'',c.active?c.active.price:'',c.active?bDate(c.active):'',c.active?daysSince(bDate(c.active)):'',c.list.length,c.notes.length,fmtTime(c.last)]));
+$('cExport').onclick=()=>csv('العملاء',['الاسم','الهوية','الجوال','البريد','الشركة','الرقم الوظيفي','الحالة','سكني','توقيع العرض وتوثيق العقد','كود الحجز النشط','كود الوحدة (سكني)','الوحدة','الحي','النموذج','السعر','تاريخ الحجز','أيام منذ الحجز','عدد الحجوزات','عدد التحديثات','آخر تحديث'],
+  filteredCustomers(buildCustomers()).map(c=>[c.name,c.natId,c.phone,c.email,c.company,c.empNo,CUST_STATE[c.state],c.active?(c.sakani?'مسجَّل':'بانتظار التسجيل'):'',c.active?(c.signed?'موقّع وموثّق':'بانتظار التوقيع'):'',c.active?c.active.refNo:'',c.active?skCode(c.active.unitId):'',c.active?c.active.unitId:'',c.active?c.active.district:'',c.active?c.active.model:'',c.active?c.active.price:'',c.active?bDate(c.active):'',c.active?daysSince(bDate(c.active)):'',c.list.length,c.notes.length,fmtTime(c.last)]));
 
 /* ===== Units table ===== */
 ['uSearch','uDistrict','uCompany','uModel','uStatus'].forEach(i=>$(i).addEventListener('input',renderUnits));
@@ -1068,7 +1096,7 @@ function renderMarkers(){
   $('mapCount').textContent=`${shown.length} فيلا في ${mapDistrict}${fl?' ('+fl+')':''}: متاحة ${st.available} · مبدئي ${st.pending} · معتمد ${st.approved}`;
 }
 function showUnit(id){const u=MASTER_BY_ID[id];const b=activeBookingForUnit(id);const st=b?b.status:'available';const ubid=bidOfUnit(id);const pl=st==='approved'&&isPledged(ubid);
-  let h=`<h3>الوحدة ${u.id} <span class="st ${st}${pl?' pledged':''}">${unitStatusLabel(id)}</span></h3><div class="kv">
+  let h=`<h3>الوحدة ${unitSpan(u.id)} <span class="st ${st}${pl?' pledged':''}">${unitStatusLabel(id)}</span></h3><div class="kv">
     <div>الحي / البلوك</div><div>${esc(u.district)} · بلوك ${u.block}</div><div>النموذج</div><div>${u.model} · ${u.bed} غرف · ${u.bath} حمامات</div><div>المساحة</div><div>أرض ${fmt(u.plotArea)} م² · بناء ${fmt(u.builtArea)} م²</div><div>السعر</div><div>${fmt(u.price)} ر.س</div><div>التخصيص</div><div>${esc(u.company)}</div>`;
   if(b)h+=`<div>كود الحجز</div><div class="mono"><b>${esc(b.refNo||'')}</b></div><div>العميل</div><div>${esc(b.name)}</div><div>الهوية</div><div class="mono">${esc(b.natId||'—')}</div><div>الجوال</div><div class="mono">${esc(b.phone||'—')}</div><div>الشركة</div><div>${esc(b.company)}</div><div>طريقة الدفع</div><div>${esc(b.payMethod)}</div><div>تاريخ الحجز</div><div>${esc(b.bookingDate)}</div><div>المُدخل</div><div>${esc(b.maker)} · ${fmtTime(b.createdAt)}</div><div>المُراجع</div><div>${esc(b.checker||'—')}</div><div>التعهد</div><div>${pledgeBadge(ubid,b)||'—'}${pl?' · '+fmtTime(pledgeOf(ubid).confirmedAt):''}</div>`;
   h+=`</div><div class="actions">`;
@@ -1139,10 +1167,10 @@ function renderExceptions(){
   groups.forEach(g=>{h+=`<h4>${esc(g.t)} <span class="n ${g.rows.length?'':'zero'}">${g.rows.length}</span></h4>`;
     if(g.rows.length){h+=`<div class="tblwrap"><table><thead><tr><th>الوحدة</th><th>العميل</th><th>الهوية</th><th>الشركة</th><th>الحالة</th><th>المُدخل</th><th>المشكلة</th>${g.fix&&session.role==='admin'?'<th></th>':''}</tr></thead><tbody>`;
       g.rows.forEach(r=>{const b=r.b;excRows.push([g.t,b.unitId,b.name,b.natId,b.company,STATUS_AR[b.status]||b.status,b.maker,r.why]);
-        h+=`<tr><td class="mono">${esc(b.unitId)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td>${esc(b.company)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${esc(b.maker)}</td><td style="white-space:normal">${esc(r.why)}</td>${g.fix&&session.role==='admin'?`<td><button class="btn sec sm" onclick="fixIdx()">إصلاح الفهرس</button></td>`:''}</tr>`});
+        h+=`<tr><td>${unitLbl(b.unitId)}</td><td>${esc(b.name)}</td><td class="mono">${esc(b.natId)}</td><td>${esc(b.company)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]||b.status}</span></td><td>${esc(b.maker)}</td><td style="white-space:normal">${esc(r.why)}</td>${g.fix&&session.role==='admin'?`<td><button class="btn sec sm" onclick="fixIdx()">إصلاح الفهرس</button></td>`:''}</tr>`});
       h+='</tbody></table></div>'}});
   h+=`<h4>حجوزات اليوم (إدخال أو مراجعة) <span class="n zero">${todayRows.length}</span></h4>`;
-  if(todayRows.length)h+=`<div class="tblwrap"><table><thead><tr><th>الوحدة</th><th>العميل</th><th>الشركة</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th>الوقت</th></tr></thead><tbody>${todayRows.sort((a,b)=>(b.checkedAt||b.createdAt)-(a.checkedAt||a.createdAt)).map(b=>`<tr><td class="mono">${esc(b.unitId)}</td><td>${esc(b.name)}</td><td>${esc(b.company)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]}</span></td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}</td><td>${fmtTime(b.checkedAt||b.createdAt)}</td></tr>`).join('')}</tbody></table></div>`;
+  if(todayRows.length)h+=`<div class="tblwrap"><table><thead><tr><th>الوحدة</th><th>العميل</th><th>الشركة</th><th>الحالة</th><th>المُدخل</th><th>المُراجع</th><th>الوقت</th></tr></thead><tbody>${todayRows.sort((a,b)=>(b.checkedAt||b.createdAt)-(a.checkedAt||a.createdAt)).map(b=>`<tr><td>${unitLbl(b.unitId)}</td><td>${esc(b.name)}</td><td>${esc(b.company)}</td><td><span class="st ${b.status}">${STATUS_AR[b.status]}</span></td><td>${esc(b.maker)}</td><td>${esc(b.checker||'')}</td><td>${fmtTime(b.checkedAt||b.createdAt)}</td></tr>`).join('')}</tbody></table></div>`;
   $('excBody').innerHTML=h;
 }
 async function fixIdx(){ // rebuild uniqueness index from active bookings (admin only)
@@ -1296,6 +1324,167 @@ function csv(name,head,rows){
   wb.Workbook={Views:[{RTL:true}]};
   XLSX.writeFile(wb,`${name}_${today()}.xlsx`);
 }
+
+/* ===== مطابقة ملف سكني (Bookings And Units Report) ===== */
+const SK_COLS={project:'Project Code',product:'Product Code',block:'Block Number',land:'Land Number',alloc:'Allocation Status',natId:'Beneficiary ID',name:'Name',phone:'Phone Number',bdate:'Booking Date',bstatus:'Booking Status',price:'Unit Price',fee:'Booking Fee Paid',src:'Booking Source',ptype:'Purchase Type',partner:'Partner Name'};
+const SK_TYPES={
+  unknown_project:{t:'كود مشروع غير معروف في الملف',k:'red'},
+  unknown_unit:{t:'وحدة في ملف سكني غير موجودة بالموقع',k:'red'},
+  missing_unit:{t:'وحدة بالموقع غير موجودة في ملف سكني',k:'amber'},
+  code_diff:{t:'كود الوحدة في سكني يختلف عن المتوقع',k:'amber'},
+  block_diff:{t:'اختلاف رقم البلوك',k:'amber'},
+  price_diff:{t:'اختلاف السعر',k:'amber'},
+  sakani_only:{t:'محجوزة في سكني وليست محجوزة بالموقع',k:'red'},
+  site_only:{t:'محجوزة بالموقع ولم تُسجَّل في سكني',k:'blue'},
+  flag_mismatch:{t:'مؤشَّرة بالموقع «مسجَّلة في سكني ✓» لكن الملف يظهرها متاحة',k:'red'},
+  customer_diff:{t:'عميل مختلف على نفس الوحدة',k:'red'},
+  details_diff:{t:'نفس العميل مع اختلاف الاسم أو الجوال',k:'amber'},
+  flag_missing:{t:'مسجَّلة في سكني ولم تُؤشَّر بالموقع',k:'ok'},
+  dup_customer:{t:'نفس المستفيد على أكثر من وحدة في سكني',k:'red'}};
+const SK_DEC={defer:'مؤجَّل للمطابقة القادمة',ignore:'متجاهَل نهائياً',create:'سُجّل الحجز بالموقع',cancel:'أُلغي الحجز بالموقع',unflag:'أُزيلت علامة سكني',flag:'أُشّر مسجَّلاً في سكني',details:'حُدّثت البيانات من سكني',replace:'استُبدل العميل من سكني'};
+let skRun=null,skDecisions={},skInited=false;
+const skNorm=v=>v==null?'':String(v).trim();
+const skDigits=v=>skNorm(v).replace(/\D/g,'');
+const skPhoneKey=v=>{let d=skDigits(v);if(d.startsWith('966'))d=d.slice(3);if(d.startsWith('0'))d=d.slice(1);return d};
+const skName=v=>skNorm(v).replace(/\s+/g,' ').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي');
+const skPlural=n=>n===0?'لا توجد تعارضات':n===1?'تعارض واحد':n===2?'تعارضان':n<=10?`${n} تعارضات`:`${n} تعارضاً`;
+function skDate(v){if(v==null||v==='')return '';if(v instanceof Date)return isNaN(v)?'':ymd(v);if(typeof v==='number'){const d=new Date(Math.round((v-25569)*86400000));return ymd(new Date(d.getTime()+d.getTimezoneOffset()*60000))}
+  const s=String(v).trim();let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;const d=new Date(s);return isNaN(d)?s:ymd(d)}
+const skBooked=r=>!!((r.natId||(r.alloc&&r.alloc!=='available'))&&!/cancel|expire|reject|ملغ|منته|مرفوض/i.test(r.bstatus||''));
+function skParse(buf){const wb=XLSX.read(buf,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  const hi=aoa.findIndex(r=>r&&r.some(c=>skNorm(c)==='Product Code'));if(hi<0)throw new Error('لم أجد صف العناوين (Product Code). تأكد أن الملف هو تقرير «Bookings And Units» من سكني بدون تعديل');
+  const hdr=aoa[hi].map(skNorm);const col={};for(const k in SK_COLS)col[k]=hdr.indexOf(SK_COLS[k]);
+  const miss=['project','product','land','block','alloc'].filter(k=>col[k]<0);if(miss.length)throw new Error('أعمدة ناقصة في الملف: '+miss.map(k=>SK_COLS[k]).join('، '));
+  const rows=[];for(const r of aoa.slice(hi+1)){if(!r||!skNorm(r[col.project]))continue;const g=k=>col[k]<0?null:r[col[k]];
+    const proj=skNorm(g('project')),dc=SK_PROJECTS[proj]||null,land=parseInt(skDigits(g('land')),10);
+    rows.push({proj,dc,unitId:dc&&land?dc+'-'+String(land).padStart(3,'0'):null,product:skNorm(g('product')),block:skDigits(g('block')),land,alloc:skNorm(g('alloc')).toLowerCase(),natId:skDigits(g('natId')),name:skNorm(g('name')),phone:skNorm(g('phone')),bdate:skDate(g('bdate')),bstatus:skNorm(g('bstatus')),
+      price:(g('price')==null||g('price')==='')?null:Number(String(g('price')).replace(/[^\d.]/g,'')),fee:skNorm(g('fee')),src:skNorm(g('src')),ptype:skNorm(g('ptype')),partner:skNorm(g('partner'))})}
+  return rows}
+const skKey=(type,unitId,a,b)=>[type,unitId,a||'',b||''].join('|').replace(/[.#$\[\]\/]/g,'_');
+function skCompare(rows){const C=[],seen={},byNat={};
+  const push=(type,unitId,r,extra,k1,k2)=>C.push(Object.assign({type,unitId:unitId||'',r,key:skKey(type,unitId,k1,k2)},extra||{}));
+  for(const r of rows){
+    if(!r.dc){push('unknown_project',r.product||r.proj,r,null,r.proj);continue}
+    const u=MASTER_BY_ID[r.unitId];if(!u){push('unknown_unit',r.unitId,r,null,r.product);continue}
+    seen[r.unitId]=1;
+    if(r.product&&!u.sakaniCode&&r.product!==skCode(r.unitId))push('code_diff',r.unitId,r,{u},r.product);
+    if(parseInt(u.block,10)!==parseInt(r.block,10))push('block_diff',r.unitId,r,{u},r.block,u.block);
+    const b=activeBookingForUnit(r.unitId),bid=b?bidOfUnit(r.unitId):null,booked=skBooked(r),flag=b&&b.natId?sakaniOf(b.natId,bid):null;
+    if(r.price!=null&&!isNaN(r.price)&&r.price>0){const ref=Number(b?b.price:u.price);if(ref!==r.price)push('price_diff',r.unitId,r,{u,b,bid},r.price,ref)}
+    if(booked&&r.natId)(byNat[r.natId]=byNat[r.natId]||[]).push(r.unitId);
+    if(booked&&!b)push('sakani_only',r.unitId,r,{u},r.natId);
+    else if(!booked&&b)push(flag?'flag_mismatch':'site_only',r.unitId,r,{u,b,bid},b.natId);
+    else if(booked&&b){
+      if(r.natId&&b.natId&&r.natId!==b.natId)push('customer_diff',r.unitId,r,{u,b,bid},r.natId,b.natId);
+      else{const nd=!!(r.name&&b.name&&skName(r.name)!==skName(b.name)),pd=!!(r.phone&&b.phone&&skPhoneKey(r.phone)!==skPhoneKey(b.phone));
+        if(nd||pd)push('details_diff',r.unitId,r,{u,b,bid,nd,pd},r.name+'|'+skPhoneKey(r.phone),b.name+'|'+skPhoneKey(b.phone));
+        if(!flag)push('flag_missing',r.unitId,r,{u,b,bid},r.natId)}}}
+  for(const u of MASTER)if(!seen[u.id])push('missing_unit',u.id,null,{u,b:activeBookingForUnit(u.id)});
+  for(const [n,units] of Object.entries(byNat))if(units.length>1)push('dup_customer',units.join('، '),{natId:n},{units},n,units.join(','));
+  const order=Object.keys(SK_TYPES);C.sort((a,b)=>order.indexOf(a.type)-order.indexOf(b.type)||a.unitId.localeCompare(b.unitId));return C}
+const skCount=C=>C.reduce((m,c)=>(m[c.type]=(m[c.type]||0)+1,m),{});
+async function skHandleFile(file){if(!session||session.role!=='admin')return toast('المطابقة متاحة للمدير فقط',true);
+  try{$('skInfo').textContent='جارٍ قراءة الملف…';const rows=skParse(await file.arrayBuffer());
+    const upd={};rows.forEach(r=>{const u=r.unitId&&MASTER_BY_ID[r.unitId];if(u&&r.product&&u.sakaniCode!==r.product)upd['master/'+u.id+'/sakaniCode']=r.product});
+    const nCodes=Object.keys(upd).length;if(nCodes){await ROOT.update(upd);rows.forEach(r=>{const u=r.unitId&&MASTER_BY_ID[r.unitId];if(u&&r.product)u.sakaniCode=r.product});log('تثبيت أكواد سكني على الوحدات','','',`${nCodes} وحدة من ${file.name}`);renderAll()}
+    const all=skCompare(rows),isIgn=c=>!!(skDecisions[c.key]&&skDecisions[c.key].decision==='ignore');
+    skRun={file:file.name,at:Date.now(),rows,all,conflicts:all.filter(c=>!isIgn(c)),ignored:all.filter(isIgn),i:0,done:{}};
+    const byProj={};rows.forEach(r=>{byProj[r.proj]=(byProj[r.proj]||0)+1});
+    $('skInfo').innerHTML=`<b>${esc(file.name)}</b> · ${rows.length} صف · ${Object.entries(byProj).map(([k,v])=>`${esc(DISTRICTS[SK_PROJECTS[k]]||k)}: ${v}`).join(' · ')} · محجوزة في سكني: <b>${rows.filter(r=>skBooked(r)).length}</b>${nCodes?` · ثُبّت كود سكني لـ ${nCodes} وحدة`:''} · <b>${skPlural(skRun.conflicts.length)}</b>`;
+    $('skActions').style.display='';
+    try{await ROOT.child('sakaniSync/runs').push({at:skRun.at,by:session.name,byEmail:session.email,file:file.name,rows:rows.length,booked:rows.filter(r=>skBooked(r)).length,conflicts:skRun.conflicts.length,byType:skCount(skRun.conflicts)})}catch(e){}
+    log('مطابقة ملف سكني','','',`${file.name} · ${rows.length} صف · ${skPlural(skRun.conflicts.length)}`);
+    skResultModal()}
+  catch(e){console.error(e);$('skInfo').innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;toast(e.message,true)}}
+function skResultModal(){const C=skRun.conflicts,n=C.length,cnt=skCount(C);
+  let h=`<h3>نتيجة مطابقة ملف سكني</h3><div class="muted" style="font-size:13px">${esc(skRun.file)} · ${skRun.rows.length} وحدة في الملف · ${MASTER.length} وحدة بالموقع</div>`;
+  h+=n?`<div class="banner ${C.some(c=>SK_TYPES[c.type].k==='red')?'red':'amber'}" style="font-size:22px;justify-content:center">${skPlural(n)}</div>`:`<div class="banner ok" style="justify-content:center">الملف مطابق لبيانات الموقع ✓ لا توجد تعارضات</div>`;
+  if(n)h+=`<div class="kv" style="font-size:14px">${Object.entries(cnt).map(([t,c])=>`<div><span class="skt ${SK_TYPES[t].k}">${c}</span></div><div>${SK_TYPES[t].t}</div>`).join('')}</div>`;
+  if(skRun.ignored.length)h+=`<div class="muted" style="font-size:12px">${skRun.ignored.length} تعارض متجاهَل نهائياً من مطابقات سابقة لا يُعرض.</div>`;
+  h+=`<div class="actions">${n?`<button class="btn" onclick="closeModal();skWizard(0)">ابدأ المراجعة واحداً تلو الآخر</button>`:''}<button class="btn sec" onclick="skExport()">تصدير Excel</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;showModal(h)}
+function skRow(l,a,b,diff){const v=x=>(x==null||x==='')?'<span class="muted">—</span>':x;return `<tr${diff?' class="diff"':''}><th>${l}</th><td>${v(a)}</td><td>${v(b)}</td></tr>`}
+function skWizard(i){const C=skRun.conflicts;if(i<0)i=0;if(i>=C.length)return skFinish();skRun.i=i;const c=C[i],r=c.r||{},u=c.u||MASTER_BY_ID[c.unitId]||{},b=c.b||null,T=SK_TYPES[c.type],d=skDecisions[c.key],done=skRun.done[c.key];
+  let h=`<div class="muted" style="font-size:13px">تعارض ${i+1} من ${C.length}</div><h3 style="margin-top:4px"><span class="skt ${T.k}">${T.t}</span></h3>`;
+  if(c.type!=='dup_customer'){const site=b?STATUS_AR[b.status]:(u.id?'متاحة':'');
+    h+=`<table class="cmp"><thead><tr><th></th><th>ملف سكني</th><th>الموقع</th></tr></thead><tbody>`+
+      skRow('كود الوحدة',esc(r.product||''),u.id?unitSpan(u.id):'',c.type==='code_diff'||c.type==='unknown_unit'||c.type==='missing_unit')+
+      skRow('الحي / البلوك',r.proj?`${esc(DISTRICTS[r.dc]||r.proj)} · بلوك ${esc(r.block)}`:'',u.id?`${esc(u.district)} · بلوك ${esc(u.block)}`:'',c.type==='block_diff')+
+      skRow('الحالة',r.proj?esc(r.alloc||'')+(r.bstatus?` · ${esc(r.bstatus)}`:''):'',site,['sakani_only','site_only','flag_mismatch'].includes(c.type))+
+      skRow('رقم الهوية',esc(r.natId||''),b?esc(b.natId||''):'',c.type==='customer_diff')+
+      skRow('الاسم',esc(r.name||''),b?esc(b.name||''):'',!!c.nd)+
+      skRow('الجوال',esc(r.phone||''),b?esc(b.phone||''):'',!!c.pd)+
+      skRow('تاريخ الحجز',esc(r.bdate||''),b?esc(b.bookingDate||''):'',false)+
+      skRow('السعر',r.price!=null?fmt(r.price):'',b?fmt(b.price):(u.id?fmt(u.price):''),c.type==='price_diff')+
+      (b?skRow('كود الحجز بالموقع','',`<b class="mono">${esc(b.refNo||'')}</b> · ${esc(b.maker||'')} · ${esc(b.company||'')}`,false):'')+
+      (b?skRow('مؤشر سكني بالموقع','',b.natId&&sakaniOf(b.natId,c.bid)?'مسجَّل ✓':'بانتظار ⏳',c.type==='flag_mismatch'||c.type==='flag_missing'):'')+
+      ((r.fee||r.src||r.ptype||r.partner)?skRow('رسوم / مصدر / نوع الشراء / الشريك',[r.fee,r.src,r.ptype,r.partner].filter(Boolean).map(esc).join(' · '),'',false):'')+`</tbody></table>`}
+  else{const x=activeBookingForNat(r.natId);h+=`<div class="kv"><div>رقم الهوية</div><div class="mono">${esc(r.natId)}</div><div>الوحدات في سكني</div><div>${esc(c.unitId)}</div><div>بالموقع</div><div>${x?`حجز نشط على ${unitSpan(x.unitId)} (${esc(x.refNo||'')})`:'لا يوجد حجز نشط'}</div></div>`}
+  if(d&&!done)h+=`<div class="banner amber" style="font-size:13px">قرار سابق: ${SK_DEC[d.decision]||d.decision} · ${fmtTime(d.at)} · ${esc(d.by||'')}${d.note?' · '+esc(d.note):''}</div>`;
+  if(done)h+=`<div class="banner ok" style="font-size:13px">تم: ${esc(done)}</div>`;
+  h+=`<div class="actions" id="skBtns">${done?'':skButtons(c)}</div><div class="err" id="skErr"></div>
+    <div class="actions" style="margin-top:6px;justify-content:space-between"><div><button class="btn sec sm" onclick="skWizard(${i-1})" ${i===0?'disabled':''}>السابق</button> <button class="btn sec sm" onclick="skWizard(${i+1})">${i+1<C.length?'تخطّي / التالي':'إنهاء'}</button></div><button class="btn sec sm" onclick="closeModal()">إغلاق</button></div>`;
+  showModal(h,'wide')}
+function skButtons(c){const B=(a,l,cls)=>`<button class="btn ${cls||''}" onclick="skAct('${a}')">${l}</button>`;const t=c.type;let h='';
+  if(t==='sakani_only')h+=B('create','تسجيل الحجز بالموقع من بيانات سكني (معتمد)');
+  if(t==='site_only')h+=B('defer','لم يُسجَّل في سكني بعد — يبقى ⏳','sec')+B('cancel','إلغاء الحجز بالموقع','danger');
+  if(t==='flag_mismatch')h+=B('unflag','إزالة علامة ✓ (يرجع ⏳)');
+  if(t==='customer_diff')h+=B('replace','اعتماد بيانات سكني وتحديث الحجز بالعميل الجديد');
+  if(t==='details_diff')h+=B('details','تحديث الاسم/الجوال من سكني');
+  if(t==='flag_missing')h+=B('flag','تأشير ✓ مسجَّل في سكني');
+  if(t!=='site_only')h+=B('defer','تأجيل للمطابقة القادمة','sec');
+  return h+B('ignore','تجاهل نهائياً','sec')}
+async function skDecide(c,decision,note){await ROOT.child('sakaniSync/decisions/'+c.key).set({decision,type:c.type,unitId:c.unitId,natId:(c.r&&c.r.natId)||'',at:Date.now(),by:session.name,byEmail:session.email,note:note||'',file:skRun?skRun.file:''});
+  log('قرار مطابقة سكني',c.unitId.length<12?c.unitId:'',c.bid||'',`${SK_TYPES[c.type].t} → ${SK_DEC[decision]||decision}${note?' · '+note:''}`)}
+async function skAct(a){const c=skRun.conflicts[skRun.i];const r=c.r||{},u=c.u||MASTER_BY_ID[c.unitId],b=c.b,bid=c.bid;
+  document.querySelectorAll('#skBtns button').forEach(x=>x.disabled=true);
+  try{let label='';
+    if(a==='defer'||a==='ignore'){const note=a==='ignore'?(prompt('سبب التجاهل (اختياري):')||''):'';await skDecide(c,a,note);label=SK_DEC[a]}
+    else if(a==='create')label=await skCreate(c);
+    else if(a==='cancel'){const reason=prompt('سبب الإلغاء:');if(reason===null)return skWizard(skRun.i);
+      await ROOT.child('bookings/'+bid).update({status:'cancelled',checker:session.name,checkerEmail:session.email,checkedAt:Date.now(),rejectReason:reason.trim()});
+      await ROOT.child('idx/unit/'+b.unitId).transaction(x=>x===bid?null:undefined);if(b.natId)await ROOT.child('idx/natId/'+b.natId).transaction(x=>x===bid?null:undefined);
+      log('إلغاء حجز (مطابقة سكني)',b.unitId,bid,`${b.name} — ${reason.trim()}`);label=SK_DEC.cancel}
+    else if(a==='unflag'){await ROOT.child('customers/'+b.natId+'/sakani/'+bid).remove();log('إزالة تأشير سكني (مطابقة)',b.unitId,bid,b.name);label=SK_DEC.unflag}
+    else if(a==='flag'){await ROOT.child('customers/'+b.natId+'/sakani/'+bid).set({at:Date.now(),by:session.name,byEmail:session.email,source:'ملف سكني',sakaniDate:r.bdate||''});log('تأكيد التسجيل في سكني (مطابقة)',b.unitId,bid,b.name);label=SK_DEC.flag}
+    else if(a==='details'){const up={};if(c.nd&&r.name)up.name=r.name;if(c.pd&&r.phone){const k=skPhoneKey(r.phone);up.phone=k.length===9?'0'+k:r.phone}
+      await ROOT.child('bookings/'+bid).update(up);log('تحديث بيانات العميل من سكني',b.unitId,bid,Object.entries(up).map(([k,v])=>`${k==='name'?'الاسم':'الجوال'}: ${b[k]||''} → ${v}`).join(' · '));label=SK_DEC.details}
+    else if(a==='replace'){if(!/^[12]\d{9}$/.test(r.natId))throw new Error('رقم هوية سكني غير صالح');const other=activeBookingForNat(r.natId);if(other&&other!==b)throw new Error(`رقم الهوية ${r.natId} مسجل على حجز نشط آخر (${other.unitId})`);
+      if(!confirm(`استبدال العميل ${b.name} (${b.natId}) بـ ${r.name||''} (${r.natId}) على الوحدة ${unitTxt(b.unitId)}؟`))return skWizard(skRun.i);
+      const up={natId:r.natId};if(r.name)up.name=r.name;if(r.phone)up.phone=r.phone;await ROOT.child('bookings/'+bid).update(up);
+      if(b.natId)await ROOT.child('idx/natId/'+b.natId).transaction(x=>x===bid?null:undefined);await ROOT.child('idx/natId/'+r.natId).set(bid);
+      log('استبدال عميل من سكني',b.unitId,bid,`${b.name} (${b.natId}) → ${r.name||''} (${r.natId})`);label=SK_DEC.replace}
+    if(label){skRun.done[c.key]=label;if(a!=='defer'&&a!=='ignore')await skDecide(c,a,'');toast(label);skWizard(skRun.i+1)}
+  }catch(e){if(e.message!=='أُلغي'){$('skErr').textContent=e.message;toast(e.message,true)}document.querySelectorAll('#skBtns button').forEach(x=>x.disabled=false)}}
+async function skCreate(c){const r=c.r,u=c.u;if(!/^[12]\d{9}$/.test(r.natId))throw new Error('رقم هوية المستفيد في الملف غير صالح (10 أرقام تبدأ بـ 1 أو 2)');
+  let company=u.company;if(company===UNALLOC){company=canonCompany(prompt('الوحدة غير مخصصة لشركة. اكتب اسم شركة العميل:')||'');if(!company)throw new Error('أُلغي')}
+  if(!confirm(`تسجيل حجز معتمد على الوحدة ${unitTxt(u.id)} باسم ${r.name||''} (${r.natId}) من بيانات سكني؟`))throw new Error('أُلغي');
+  const bid=ROOT.child('bookings').push().key;
+  const r1=await ROOT.child('idx/unit/'+u.id).transaction(cur=>{if(cur!==null){const x=bookings[cur];if(isActive(x)||!x)return;}return bid});if(!r1.committed)throw new Error('الوحدة حُجزت للتو من مستخدم آخر');
+  const r2=await ROOT.child('idx/natId/'+r.natId).transaction(cur=>{if(cur!==null){const x=bookings[cur];if(isActive(x)||!x)return;}return bid});
+  if(!r2.committed){await ROOT.child('idx/unit/'+u.id).transaction(cur=>cur===bid?null:undefined);const o=activeBookingForNat(r.natId);throw new Error(`رقم الهوية مسجل على حجز نشط آخر${o?' ('+unitTxt(o.unitId)+')':''}`)}
+  const rc=await ROOT.child('counters/booking').transaction(x=>(x||0)+1);const refNo='JB-'+(DISTRICT_CODE[u.district]||u.id.slice(0,2))+'-'+u.plot+'-'+String(rc.snapshot.val()).padStart(5,'0');const now=Date.now();
+  const booking={refNo,unitId:u.id,district:u.district,block:u.block,model:u.model,company,price:u.price,plot:u.plot,natId:r.natId,name:r.name||'',empNo:'',phone:r.phone||'',email:'',payMethod:r.ptype||'',bookingDate:r.bdate||today(),
+    notes:`مستورد من ملف سكني ${skRun.file}${r.bstatus?' · '+r.bstatus:''}${r.fee?' · رسوم: '+r.fee:''}`,status:'approved',maker:session.name,makerEmail:session.email,makerRole:session.role,createdAt:now,checker:session.name,checkerEmail:session.email,checkedAt:now,source:'سكني'};
+  await ROOT.child('bookings/'+bid).set(booking);if(!COMPANIES.includes(company)){try{await ROOT.child('companies').push(company)}catch(e){}}
+  await ROOT.child('customers/'+r.natId+'/sakani/'+bid).set({at:now,by:session.name,byEmail:session.email,source:'ملف سكني',sakaniDate:r.bdate||''});
+  log('إنشاء حجز معتمد من ملف سكني',u.id,bid,`${refNo} — ${booking.name}`);return `سُجّل الحجز ${refNo} (معتمد) وأُشّر مسجَّلاً في سكني`}
+function skFinish(){const C=skRun.conflicts,done=Object.keys(skRun.done).length,left=C.filter(c=>!skRun.done[c.key]);
+  showModal(`<h3>انتهت المراجعة</h3><div class="kv"><div>التعارضات</div><div>${C.length}</div><div>اتُّخذ قرار</div><div>${done}</div><div>بلا قرار</div><div>${left.length}${left.length?` <span class="muted">(${left.slice(0,6).map(c=>esc(c.unitId)).join('، ')}${left.length>6?'…':''})</span>`:''}</div></div>
+    <div class="muted" style="font-size:13px">ارفع الملف مرة أخرى بعد التعديلات للتأكد من اختفاء التعارضات.</div>
+    <div class="actions"><button class="btn sec" onclick="skExport()">تصدير النتيجة Excel</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`)}
+function skExport(){if(!skRun)return;csv('مطابقة_سكني',['النوع','كود الوحدة (سكني)','الوحدة','سكني: الهوية','سكني: الاسم','سكني: الجوال','سكني: الحالة','سكني: حالة الحجز','سكني: تاريخ الحجز','سكني: السعر','الموقع: الحالة','الموقع: كود الحجز','الموقع: الهوية','الموقع: الاسم','الموقع: الجوال','الموقع: السعر','القرار'],
+  skRun.conflicts.map(c=>{const r=c.r||{},b=c.b,u=c.u||MASTER_BY_ID[c.unitId];const d=skRun.done[c.key]||(skDecisions[c.key]?SK_DEC[skDecisions[c.key].decision]:'');return [SK_TYPES[c.type].t,r.product||(u?skCode(u.id):''),c.unitId,r.natId,r.name,r.phone,r.alloc,r.bstatus,r.bdate,r.price,b?STATUS_AR[b.status]:(u?'متاحة':''),b?b.refNo:'',b?b.natId:'',b?b.name:'',b?b.phone:'',b?b.price:(u?u.price:''),d]}))}
+function skRenderDecisions(){const el=$('skDecList');if(!el)return;const L=Object.entries(skDecisions).filter(([k,d])=>d&&(d.decision==='defer'||d.decision==='ignore')).sort((a,b)=>b[1].at-a[1].at);
+  el.innerHTML=L.length?`<div class="tblwrap"><table><thead><tr><th>الوحدة</th><th>التعارض</th><th>القرار</th><th>متى</th><th>من</th><th></th></tr></thead><tbody>${L.map(([k,d])=>`<tr><td class="mono">${esc(d.unitId)}</td><td>${esc((SK_TYPES[d.type]||{}).t||d.type)}${d.note?`<div class="muted" style="font-size:12px">${esc(d.note)}</div>`:''}</td><td>${SK_DEC[d.decision]||esc(d.decision)}</td><td>${fmtTime(d.at)}</td><td>${esc(d.by||'')}</td><td><button class="btn sec sm" data-skdel="${esc(k)}">إلغاء القرار</button></td></tr>`).join('')}</tbody></table></div>`:'لا توجد قرارات مؤجَّلة أو متجاهَلة.';
+  el.querySelectorAll('[data-skdel]').forEach(btn=>btn.onclick=async()=>{if(!confirm('إلغاء هذا القرار؟ سيظهر التعارض في المطابقة القادمة.'))return;await ROOT.child('sakaniSync/decisions/'+btn.dataset.skdel).remove();toast('أُلغي القرار')})}
+function skInit(){if(skInited||!session||session.role!=='admin')return;skInited=true;
+  ROOT.child('sakaniSync/decisions').on('value',s=>{skDecisions=s.val()||{};skRenderDecisions()},()=>{});
+  ROOT.child('sakaniSync/runs').limitToLast(1).on('value',s=>{const v=s.val();const el=$('skLast');if(!el)return;if(!v){el.textContent='لم تُجرَ أي مطابقة بعد.';return}const r=Object.values(v)[0];el.textContent=`آخر مطابقة: ${fmtTime(r.at)} · ${r.by||''} · ${r.file||''} · ${r.rows} صف · ${skPlural(r.conflicts||0)}`},()=>{});
+  const dz=$('skDrop'),fi=$('skFile');['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('over')}));['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('over')}));
+  dz.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)skHandleFile(f)});fi.addEventListener('change',()=>{if(fi.files[0])skHandleFile(fi.files[0]);fi.value=''});
+  $('skReview').onclick=()=>skRun&&skWizard(0);$('skExport').onclick=skExport}
+
 </script>
 </body>
 </html>
