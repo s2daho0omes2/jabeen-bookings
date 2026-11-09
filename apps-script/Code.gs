@@ -615,3 +615,8 @@ function fileDelete_(emp, natId, fid) {
   audit_(emp, 'حذف مستند عميل', '', '', (rec.label || '') + ' · ' + (rec.name || '') + ' · ' + natId);
   return { ok: true };
 }
+/** اختبار من المحرر: يتأكد أن صلاحية Google Drive تعمل (ينشئ مجلداً تجريبياً ثم ينقله إلى المهملات) */
+function testDriveFolder() {
+  var f = fileFolder_('1000000000'); var id = f.getId(); f.setTrashed(true);
+  return 'Drive OK · ' + id;
+}
