@@ -541,8 +541,8 @@ firebase.initializeApp({
   databaseURL:"https://jabeen-bookings-default-rtdb.europe-west1.firebasedatabase.app",
   appId:"1:770648113318:web:be1ab6ef9426eb074eb467"
 });
-const APP_CHECK_KEY='__APPCHECK__'; // مفتاح reCAPTCHA v3 العام (ليس سراً)؛ يثبت أن الطلبات صادرة من هذا الموقع
-if(APP_CHECK_KEY&&!/^__/.test(APP_CHECK_KEY)){try{firebase.appCheck().activate(APP_CHECK_KEY,true)}catch(e){console.warn('App Check',e)}}
+const APP_CHECK_KEY='6LdIdBguAAAAAOMmfF5pMPakEfaKjwGRGdnSUT1Q'; // مفتاح reCAPTCHA v3 العام (ليس سراً)؛ يثبت أن الطلبات صادرة من هذا الموقع
+if(APP_CHECK_KEY&&!/^__/.test(APP_CHECK_KEY)){try{firebase.appCheck().activate(new firebase.appCheck.ReCaptchaEnterpriseProvider(APP_CHECK_KEY),true)}catch(e){console.warn('App Check',e)}}
 const db = firebase.database();
 const ROOT = db.ref('jabeenBookings');
 
