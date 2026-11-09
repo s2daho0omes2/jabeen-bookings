@@ -406,7 +406,7 @@ body.lgmode .lgfoot{display:block}
         <div id="skInfo" class="muted" style="font-size:13px;margin-top:10px"></div>
         <div class="actions" id="skActions" style="display:none"><button class="btn" id="skReview">مراجعة التعارضات</button><button class="btn sec" id="skExport">تصدير النتيجة Excel</button></div>
       </div>
-      <div class="card"><h3>القرارات السابقة</h3><div class="muted" style="font-size:13px;margin-bottom:8px">التعارضات المؤجَّلة تظهر مجدداً في المطابقة القادمة، والمتجاهَلة نهائياً تُخفى ما دامت بياناتها لم تتغير.</div><div id="skDecList" class="muted" style="font-size:13px">—</div><div id="skLast" class="muted" style="font-size:12px;margin-top:8px"></div></div>
+      <div class="card"><h3>القرارات السابقة</h3><div class="muted" style="font-size:13px;margin-bottom:8px">كل تعارض يُعرض في كل مطابقة ما دام قائماً. التأجيل والتجاهل يخصان المطابقة الواحدة فقط ويُحفظان هنا للرجوع إليهما.</div><div id="skDecList" class="muted" style="font-size:13px">—</div><div id="skLast" class="muted" style="font-size:12px;margin-top:8px"></div></div>
     </section>
     <section id="tab-map" class="hidden">
       <div class="card">
@@ -1341,7 +1341,7 @@ const SK_TYPES={
   details_diff:{t:'نفس العميل مع اختلاف الاسم أو الجوال',k:'amber'},
   flag_missing:{t:'مسجَّلة في سكني ولم تُؤشَّر بالموقع',k:'ok'},
   dup_customer:{t:'نفس المستفيد على أكثر من وحدة في سكني',k:'red'}};
-const SK_DEC={defer:'مؤجَّل للمطابقة القادمة',ignore:'متجاهَل نهائياً',create:'سُجّل الحجز بالموقع',cancel:'أُلغي الحجز بالموقع',unflag:'أُزيلت علامة سكني',flag:'أُشّر مسجَّلاً في سكني',details:'حُدّثت البيانات من سكني',replace:'استُبدل العميل من سكني'};
+const SK_DEC={defer:'مؤجَّل للمطابقة القادمة',ignore:'تُجوهل هذه المرة',create:'سُجّل الحجز بالموقع',cancel:'أُلغي الحجز بالموقع',unflag:'أُزيلت علامة سكني',flag:'أُشّر مسجَّلاً في سكني',details:'حُدّثت البيانات من سكني',replace:'استُبدل العميل من سكني'};
 let skRun=null,skDecisions={},skInited=false;
 const skNorm=v=>v==null?'':String(v).trim();
 const skDigits=v=>skNorm(v).replace(/\D/g,'');
@@ -1388,8 +1388,8 @@ async function skHandleFile(file){if(!session||session.role!=='admin')return toa
   try{$('skInfo').textContent='جارٍ قراءة الملف…';const rows=skParse(await file.arrayBuffer());
     const upd={};rows.forEach(r=>{const u=r.unitId&&MASTER_BY_ID[r.unitId];if(u&&r.product&&u.sakaniCode!==r.product)upd['master/'+u.id+'/sakaniCode']=r.product});
     const nCodes=Object.keys(upd).length;if(nCodes){await ROOT.update(upd);rows.forEach(r=>{const u=r.unitId&&MASTER_BY_ID[r.unitId];if(u&&r.product)u.sakaniCode=r.product});log('تثبيت أكواد سكني على الوحدات','','',`${nCodes} وحدة من ${file.name}`);renderAll()}
-    const all=skCompare(rows),isIgn=c=>!!(skDecisions[c.key]&&skDecisions[c.key].decision==='ignore');
-    skRun={file:file.name,at:Date.now(),rows,all,conflicts:all.filter(c=>!isIgn(c)),ignored:all.filter(isIgn),i:0,done:{}};
+    const all=skCompare(rows); // كل التعارضات تُعرض دائماً؛ التجاهل يخص هذه المرة فقط
+    skRun={file:file.name,at:Date.now(),rows,all,conflicts:all,ignored:[],i:0,done:{}};
     const byProj={};rows.forEach(r=>{byProj[r.proj]=(byProj[r.proj]||0)+1});
     $('skInfo').innerHTML=`<b>${esc(file.name)}</b> · ${rows.length} صف · ${Object.entries(byProj).map(([k,v])=>`${esc(DISTRICTS[SK_PROJECTS[k]]||k)}: ${v}`).join(' · ')} · محجوزة في سكني: <b>${rows.filter(r=>skBooked(r)).length}</b>${nCodes?` · ثُبّت كود سكني لـ ${nCodes} وحدة`:''} · <b>${skPlural(skRun.conflicts.length)}</b>`;
     $('skActions').style.display='';
@@ -1401,7 +1401,6 @@ function skResultModal(){const C=skRun.conflicts,n=C.length,cnt=skCount(C);
   let h=`<h3>نتيجة مطابقة ملف سكني</h3><div class="muted" style="font-size:13px">${esc(skRun.file)} · ${skRun.rows.length} وحدة في الملف · ${MASTER.length} وحدة بالموقع</div>`;
   h+=n?`<div class="banner ${C.some(c=>SK_TYPES[c.type].k==='red')?'red':'amber'}" style="font-size:22px;justify-content:center">${skPlural(n)}</div>`:`<div class="banner ok" style="justify-content:center">الملف مطابق لبيانات الموقع ✓ لا توجد تعارضات</div>`;
   if(n)h+=`<div class="kv" style="font-size:14px">${Object.entries(cnt).map(([t,c])=>`<div><span class="skt ${SK_TYPES[t].k}">${c}</span></div><div>${SK_TYPES[t].t}</div>`).join('')}</div>`;
-  if(skRun.ignored.length)h+=`<div class="muted" style="font-size:12px">${skRun.ignored.length} تعارض متجاهَل نهائياً من مطابقات سابقة لا يُعرض.</div>`;
   h+=`<div class="actions">${n?`<button class="btn" onclick="closeModal();skWizard(0)">ابدأ المراجعة واحداً تلو الآخر</button>`:''}<button class="btn sec" onclick="skExport()">تصدير Excel</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`;showModal(h)}
 function skRow(l,a,b,diff){const v=x=>(x==null||x==='')?'<span class="muted">—</span>':x;return `<tr${diff?' class="diff"':''}><th>${l}</th><td>${v(a)}</td><td>${v(b)}</td></tr>`}
 function skWizard(i){const C=skRun.conflicts;if(i<0)i=0;if(i>=C.length)return skFinish();skRun.i=i;const c=C[i],r=c.r||{},u=c.u||MASTER_BY_ID[c.unitId]||{},b=c.b||null,T=SK_TYPES[c.type],d=skDecisions[c.key],done=skRun.done[c.key];
@@ -1433,13 +1432,13 @@ function skButtons(c){const B=(a,l,cls)=>`<button class="btn ${cls||''}" onclick
   if(t==='details_diff')h+=B('details','تحديث الاسم/الجوال من سكني');
   if(t==='flag_missing')h+=B('flag','تأشير ✓ مسجَّل في سكني');
   if(t!=='site_only')h+=B('defer','تأجيل للمطابقة القادمة','sec');
-  return h+B('ignore','تجاهل نهائياً','sec')}
+  return h+B('ignore','تجاهل هذه المرة','sec')}
 async function skDecide(c,decision,note){await ROOT.child('sakaniSync/decisions/'+c.key).set({decision,type:c.type,unitId:c.unitId,natId:(c.r&&c.r.natId)||'',at:Date.now(),by:session.name,byEmail:session.email,note:note||'',file:skRun?skRun.file:''});
   log('قرار مطابقة سكني',c.unitId.length<12?c.unitId:'',c.bid||'',`${SK_TYPES[c.type].t} → ${SK_DEC[decision]||decision}${note?' · '+note:''}`)}
 async function skAct(a){const c=skRun.conflicts[skRun.i];const r=c.r||{},u=c.u||MASTER_BY_ID[c.unitId],b=c.b,bid=c.bid;
   document.querySelectorAll('#skBtns button').forEach(x=>x.disabled=true);
   try{let label='';
-    if(a==='defer'||a==='ignore'){const note=a==='ignore'?(prompt('سبب التجاهل (اختياري):')||''):'';await skDecide(c,a,note);label=SK_DEC[a]}
+    if(a==='defer'||a==='ignore'){const note=a==='ignore'?(prompt('سبب التجاهل هذه المرة (اختياري):')||''):'';await skDecide(c,a,note);label=SK_DEC[a]}
     else if(a==='create')label=await skCreate(c);
     else if(a==='cancel'){const reason=prompt('سبب الإلغاء:');if(reason===null)return skWizard(skRun.i);
       await ROOT.child('bookings/'+bid).update({status:'cancelled',checker:session.name,checkerEmail:session.email,checkedAt:Date.now(),rejectReason:reason.trim()});
@@ -1475,9 +1474,9 @@ function skFinish(){const C=skRun.conflicts,done=Object.keys(skRun.done).length,
     <div class="actions"><button class="btn sec" onclick="skExport()">تصدير النتيجة Excel</button><button class="btn sec" onclick="closeModal()">إغلاق</button></div>`)}
 function skExport(){if(!skRun)return;csv('مطابقة_سكني',['النوع','كود الوحدة (سكني)','الوحدة','سكني: الهوية','سكني: الاسم','سكني: الجوال','سكني: الحالة','سكني: حالة الحجز','سكني: تاريخ الحجز','سكني: السعر','الموقع: الحالة','الموقع: كود الحجز','الموقع: الهوية','الموقع: الاسم','الموقع: الجوال','الموقع: السعر','القرار'],
   skRun.conflicts.map(c=>{const r=c.r||{},b=c.b,u=c.u||MASTER_BY_ID[c.unitId];const d=skRun.done[c.key]||(skDecisions[c.key]?SK_DEC[skDecisions[c.key].decision]:'');return [SK_TYPES[c.type].t,r.product||(u?skCode(u.id):''),c.unitId,r.natId,r.name,r.phone,r.alloc,r.bstatus,r.bdate,r.price,b?STATUS_AR[b.status]:(u?'متاحة':''),b?b.refNo:'',b?b.natId:'',b?b.name:'',b?b.phone:'',b?b.price:(u?u.price:''),d]}))}
-function skRenderDecisions(){const el=$('skDecList');if(!el)return;const L=Object.entries(skDecisions).filter(([k,d])=>d&&(d.decision==='defer'||d.decision==='ignore')).sort((a,b)=>b[1].at-a[1].at);
-  el.innerHTML=L.length?`<div class="tblwrap"><table><thead><tr><th>الوحدة</th><th>التعارض</th><th>القرار</th><th>متى</th><th>من</th><th></th></tr></thead><tbody>${L.map(([k,d])=>`<tr><td class="mono">${esc(d.unitId)}</td><td>${esc((SK_TYPES[d.type]||{}).t||d.type)}${d.note?`<div class="muted" style="font-size:12px">${esc(d.note)}</div>`:''}</td><td>${SK_DEC[d.decision]||esc(d.decision)}</td><td>${fmtTime(d.at)}</td><td>${esc(d.by||'')}</td><td><button class="btn sec sm" data-skdel="${esc(k)}">إلغاء القرار</button></td></tr>`).join('')}</tbody></table></div>`:'لا توجد قرارات مؤجَّلة أو متجاهَلة.';
-  el.querySelectorAll('[data-skdel]').forEach(btn=>btn.onclick=async()=>{if(!confirm('إلغاء هذا القرار؟ سيظهر التعارض في المطابقة القادمة.'))return;await ROOT.child('sakaniSync/decisions/'+btn.dataset.skdel).remove();toast('أُلغي القرار')})}
+function skRenderDecisions(){const el=$('skDecList');if(!el)return;const L=Object.entries(skDecisions).filter(([k,d])=>d).sort((a,b)=>b[1].at-a[1].at).slice(0,100);
+  el.innerHTML=L.length?`<div class="tblwrap"><table><thead><tr><th>الوحدة</th><th>التعارض</th><th>القرار</th><th>متى</th><th>من</th><th></th></tr></thead><tbody>${L.map(([k,d])=>`<tr><td class="mono">${esc(d.unitId)}</td><td>${esc((SK_TYPES[d.type]||{}).t||d.type)}${d.note?`<div class="muted" style="font-size:12px">${esc(d.note)}</div>`:''}</td><td>${SK_DEC[d.decision]||esc(d.decision)}</td><td>${fmtTime(d.at)}</td><td>${esc(d.by||'')}</td><td><button class="btn sec sm" data-skdel="${esc(k)}">حذف من السجل</button></td></tr>`).join('')}</tbody></table></div>`:'لا توجد قرارات مسجلة بعد.';
+  el.querySelectorAll('[data-skdel]').forEach(btn=>btn.onclick=async()=>{if(!confirm('حذف هذا القرار من السجل؟'))return;await ROOT.child('sakaniSync/decisions/'+btn.dataset.skdel).remove();toast('حُذف من السجل')})}
 function skInit(){if(skInited||!session||session.role!=='admin')return;skInited=true;
   ROOT.child('sakaniSync/decisions').on('value',s=>{skDecisions=s.val()||{};skRenderDecisions()},()=>{});
   ROOT.child('sakaniSync/runs').limitToLast(1).on('value',s=>{const v=s.val();const el=$('skLast');if(!el)return;if(!v){el.textContent='لم تُجرَ أي مطابقة بعد.';return}const r=Object.values(v)[0];el.textContent=`آخر مطابقة: ${fmtTime(r.at)} · ${r.by||''} · ${r.file||''} · ${r.rows} صف · ${skPlural(r.conflicts||0)}`},()=>{});
