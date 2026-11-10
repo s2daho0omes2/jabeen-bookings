@@ -602,6 +602,11 @@ function fileUpload_(emp, natId, body) {
   var mime = String(body.mime || '');
   if (!FILE_MIME_OK.test(mime) || String.fromCharCode.apply(null, bytes.slice(0, 4).map(function (b) { return b & 255; })) !== '%PDF') throw new Error('المسموح ملفات PDF فقط');
   var label = safeName_(body.label || 'أخرى') || 'أخرى', cname = safeName_(body.cname || ''), ref = safeName_(body.ref || '');
+  try { // الاسم وكود الحجز من قاعدة البيانات مباشرة (لا نعتمد على المتصفح)
+    var bid = fbGet_(FIREBASE + '/idx/natId/' + natId), bk = bid ? fbGet_(FIREBASE + '/bookings/' + bid) : null;
+    if (bk && bk.natId === natId) { if (bk.refNo) ref = safeName_(bk.refNo); if (bk.name) cname = safeName_(bk.name); }
+    else if (!cname) { var pr = fbGet_(FIREBASE + '/customers/' + natId + '/profile'); if (pr && pr.name) cname = safeName_(pr.name); }
+  } catch (e) {}
   var orig = String(body.name || 'file.pdf').slice(0, 120);
   var name = [label, cname, natId, ref, Utilities.formatDate(new Date(), 'Asia/Riyadh', 'yyyy-MM-dd_HHmm')].filter(String).join(' - ') + '.pdf';
   var f = fileFolder_(natId, cname, ref).createFile(Utilities.newBlob(bytes, 'application/pdf', name));
