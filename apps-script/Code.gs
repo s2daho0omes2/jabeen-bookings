@@ -776,3 +776,24 @@ function ensureRestoreGuide_(folder) {
     'الإعدادات السرية (Script Properties): RESEND_KEY من حساب Resend، ADMIN_EMAIL، BACKUP_TOKEN (تُنشأ بـ setupBackupToken).'
   ].join('\n'), 'text/plain');
 }
+/** يصحح أسماء المجلدات والملفات القديمة: يضيف كود الحجز (النشط أو الأحدث) واسم العميل حسب البيانات الحالية */
+function fixDocNames() {
+  var bookings = fbGet_(FIREBASE + '/bookings') || {}, customers = fbGet_(FIREBASE + '/customers') || {}, byNat = {}, fixed = 0;
+  Object.keys(bookings).forEach(function (k) { var b = bookings[k]; if (b && b.natId) (byNat[b.natId] = byNat[b.natId] || []).push(b); });
+  Object.keys(customers).forEach(function (natId) {
+    var files = (customers[natId] || {}).files; if (!files) return;
+    var list = (byNat[natId] || []).sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+    var act = list.filter(function (b) { return b.status === 'approved'; })[0] || list.filter(function (b) { return b.status === 'pending'; })[0] || list[0] || {};
+    var prof = customers[natId].profile || {}, cname = safeName_(act.name || prof.name || ''), ref = safeName_(act.refNo || '');
+    var folder = fileFolder_(natId, cname, ref);
+    Object.keys(files).forEach(function (fid) {
+      var rec = files[fid]; if (!rec || !rec.driveId) return;
+      var stamp = Utilities.formatDate(new Date(rec.at || Date.now()), 'Asia/Riyadh', 'yyyy-MM-dd_HHmm');
+      var name = [safeName_(rec.label || 'أخرى'), cname, natId, ref, stamp].filter(String).join(' - ') + '.pdf';
+      if (rec.name === name && rec.ref === ref) return;
+      try { var f = DriveApp.getFileById(rec.driveId); f.setName(name); try { f.moveTo(folder); } catch (e) {} } catch (e) { return; }
+      fbWrite_(FIREBASE + '/customers/' + natId + '/files/' + fid, { name: name, ref: ref }, 'patch'); fixed++;
+    });
+  });
+  return 'تم تصحيح ' + fixed + ' ملف';
+}
