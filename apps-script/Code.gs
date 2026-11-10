@@ -44,7 +44,7 @@ function doPost(e) {
   var body = null;
   try { body = JSON.parse((e && e.postData && e.postData.contents) || ''); } catch (err) { body = null; }
   if (body && body.action) {
-    try { return respond_(body.action === 'notify' ? notifyRoute_(body) : body.action.indexOf('file') === 0 ? fileRoute_(body) : pledgeRoute_(body)); }
+    try { return respond_(body.action === 'notify' ? notifyRoute_(body) : body.action === 'backupExport' ? backupExport_(body) : body.action.indexOf('file') === 0 ? fileRoute_(body) : pledgeRoute_(body)); }
     catch (err) { return respond_({ ok: false, error: String(err.message || err) }); }
   }
   return respond_(syncAll());
@@ -627,6 +627,86 @@ function testDriveFolder() {
 }
 /** بعد نقل الملكية: شغّلها مرة واحدة من الحساب الجديد لإنشاء المؤقتات باسمه (المزامنة كل 5 دقائق + التقرير اليومي) */
 function setupAllTriggers() {
-  setupTrigger(); setupReportTrigger(); setupMailTrigger();
+  setupTrigger(); setupReportTrigger(); setupMailTrigger(); setupBackupTrigger();
   return ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }).join(', ') + ' · المالك: ' + Session.getEffectiveUser().getEmail();
+}
+
+/* ---------- النسخ الاحتياطي الكامل ----------
+ * dailyBackup: ينسخ قاعدة Firebase كاملة (jabeenBookings + pledgeSecrets) يومياً إلى Drive مالك السكربت
+ * في مجلد jabeen-bookings-backups بصيغة JSON مضغوطة، ويحتفظ بآخر BACKUP_KEEP_DAYS يوماً.
+ * المستندات المرفوعة محفوظة أصلاً في Drive، وكود الموقع في GitHub.
+ * الاسترجاع: listBackups() لعرض النسخ، ثم restoreFromBackup('اسم الملف') من المحرر — أو استيراد JSON يدوياً من لوحة Firebase.
+ * backupExport: يعطي النسخة الحالية لسكربت النسخ على اللابتوب برمز سري BACKUP_TOKEN في Script Properties.
+ */
+var BACKUP_FOLDER_NAME = 'jabeen-bookings-backups';
+var BACKUP_KEEP_DAYS = 60;
+function backupFolder_() {
+  var props = PropertiesService.getScriptProperties(), id = props.getProperty('BACKUP_FOLDER_ID');
+  if (id) { try { var f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {} }
+  var root = folderByName_(DriveApp.getRootFolder(), BACKUP_FOLDER_NAME); props.setProperty('BACKUP_FOLDER_ID', root.getId()); return root;
+}
+function dbSnapshot_() {
+  var r = UrlFetchApp.fetch(DB_ROOT + '/.json', { headers: fbHeaders_(), muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw new Error('DB read ' + r.getResponseCode());
+  var txt = r.getContentText(), data = JSON.parse(txt);
+  if (!data || !data.jabeenBookings) throw new Error('النسخة فارغة أو بلا jabeenBookings — لم تُحفظ');
+  return { txt: txt, data: data };
+}
+function dailyBackup() {
+  var at = Date.now(), status = { at: at, ok: false };
+  try {
+    var snap = dbSnapshot_(), jb = snap.data.jabeenBookings;
+    var name = 'jabeen-db-' + Utilities.formatDate(new Date(at), 'Asia/Riyadh', 'yyyy-MM-dd_HHmm') + '.json';
+    var gz = Utilities.gzip(Utilities.newBlob(snap.txt, 'application/json', name), name + '.gz');
+    var file = backupFolder_().createFile(gz);
+    var cut = at - BACKUP_KEEP_DAYS * 86400000, removed = 0, it = backupFolder_().getFiles();
+    while (it.hasNext()) { var f = it.next(); if (/^jabeen-db-/.test(f.getName()) && f.getDateCreated().getTime() < cut) { f.setTrashed(true); removed++; } }
+    status = { at: at, ok: true, file: file.getName(), bytes: snap.txt.length, gzBytes: file.getSize(), bookings: Object.keys(jb.bookings || {}).length, units: Object.keys(jb.master || {}).length, customers: Object.keys(jb.customers || {}).length, removed: removed };
+  } catch (e) {
+    status.error = String(e.message || e);
+    try { if (SUPER_ADMIN) sendMail_(SUPER_ADMIN, '⚠️ فشل النسخ الاحتياطي لنظام حجوزات جبين', '<div dir="rtl">فشل النسخ الاحتياطي اليومي: ' + escH_(status.error) + '<br>' + tsAr_(at) + '</div>'); } catch (e2) {}
+  }
+  try { fbWrite_(FIREBASE + '/backupStatus', status); } catch (e) {}
+  return status;
+}
+function setupBackupTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'dailyBackup') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('dailyBackup').timeBased().atHour(2).everyDays(1).inTimezone('Asia/Riyadh').create();
+  return dailyBackup();
+}
+/** يعرض آخر النسخ في سجل التنفيذ */
+function listBackups() {
+  var out = [], it = backupFolder_().getFiles();
+  while (it.hasNext()) { var f = it.next(); out.push([f.getDateCreated().getTime(), f.getName(), f.getSize()]); }
+  out.sort(function (a, b) { return b[0] - a[0]; });
+  var s = out.slice(0, 30).map(function (x) { return x[1] + '  ·  ' + Math.round(x[2] / 1024) + ' KB'; }).join('\n');
+  Logger.log(s); return s;
+}
+/** استرجاع كامل: يستبدل محتوى قاعدة البيانات بالنسخة المحددة. يأخذ نسخة من الوضع الحالي أولاً احتياطاً.
+ *  شغّلها من المحرر بعد كتابة اسم الملف في RESTORE_FILE أدناه. */
+var RESTORE_FILE = ''; // مثال: 'jabeen-db-2026-11-10_0200.json.gz'
+function restoreFromBackup(fileName) {
+  fileName = fileName || RESTORE_FILE;
+  if (!fileName) throw new Error('اكتب اسم ملف النسخة في RESTORE_FILE (من listBackups) ثم أعد التشغيل');
+  var it = backupFolder_().getFilesByName(fileName); if (!it.hasNext()) throw new Error('الملف غير موجود: ' + fileName);
+  var blob = it.next().getBlob(), txt = /\.gz$/.test(fileName) ? Utilities.ungzip(blob.setContentType('application/x-gzip')).getDataAsString('UTF-8') : blob.getDataAsString('UTF-8');
+  var data = JSON.parse(txt); if (!data || !data.jabeenBookings) throw new Error('الملف لا يحتوي jabeenBookings');
+  var before = dailyBackup(); if (!before.ok && !/فارغة/.test(before.error || '')) throw new Error('تعذر حفظ نسخة من الوضع الحالي قبل الاسترجاع: ' + before.error);
+  var r = UrlFetchApp.fetch(DB_ROOT + '/.json', { method: 'put', contentType: 'application/json', headers: fbHeaders_(), payload: txt, muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw new Error('فشل الاسترجاع ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200));
+  audit_(null, 'استرجاع قاعدة البيانات من نسخة احتياطية', '', '', fileName);
+  return 'تم الاسترجاع من ' + fileName + ' · الحجوزات: ' + Object.keys(data.jabeenBookings.bookings || {}).length;
+}
+/** للابتوب: يعيد النسخة الحالية كاملة بشرط الرمز السري */
+function backupExport_(body) {
+  var tok = PropertiesService.getScriptProperties().getProperty('BACKUP_TOKEN');
+  if (!tok || String(body.token || '') !== tok) throw new Error('رمز النسخ غير صحيح');
+  var snap = dbSnapshot_();
+  return { ok: true, at: Date.now(), data: snap.data };
+}
+/** شغّلها مرة من المحرر: تنشئ الرمز السري للابتوب وتعرضه في سجل التنفيذ */
+function setupBackupToken() {
+  var props = PropertiesService.getScriptProperties(), tok = props.getProperty('BACKUP_TOKEN');
+  if (!tok) { tok = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''); props.setProperty('BACKUP_TOKEN', tok); }
+  Logger.log(tok); return tok;
 }

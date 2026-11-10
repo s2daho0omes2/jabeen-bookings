@@ -466,6 +466,7 @@ body.lgmode .lgfoot{display:block}
 
     <!-- ADMIN -->
     <section id="tab-admin" class="hidden">
+      <div id="bkStatus"></div>
       <div class="card">
         <h2>المستخدمون المصرح لهم</h2>
         <div class="hint">فقط هذه الإيميلات تقدر تدخل النظام، والدخول برابط يُرسل للبريد كل مرة. المدير الرئيسي ثابت ولا يمكن حذفه أو تغيير صلاحيته.</div>
@@ -739,6 +740,8 @@ function enterApp(){
 let started=false;
 function startData(){
   if(started)return;started=true;
+  if(session.role==='admin')ROOT.child('backupStatus').on('value',s=>{const b=s.val(),el=$('bkStatus');if(!el)return;if(!b){el.innerHTML='<div class="banner amber">لم تُسجَّل أي نسخة احتياطية بعد.</div>';return}
+    const old=Date.now()-b.at>36*3600*1000;el.innerHTML=b.ok&&!old?`<div class="banner ok">🗄️ آخر نسخة احتياطية كاملة: ${fmtTime(b.at)} · ${b.bookings} حجز · ${b.units} وحدة · ${b.customers} عميل · ${Math.round((b.gzBytes||0)/1024)} ك.ب<small>تُحفظ يومياً الساعة 2 فجراً في Google Drive (آخر 60 يوماً)، ونسخة ثانية على جهاز المدير في OneDrive.</small></div>`:`<div class="banner red">⚠️ النسخ الاحتياطي ${b.ok?'متأخر، آخر نسخة '+fmtTime(b.at):'فشل '+fmtTime(b.at)+': '+esc(b.error||'')}</div>`},()=>{});
   ROOT.child('config').on('value',s=>{config=s.val()||{};fillPay();refreshCompanies();fillAdminLists();fillPledgeAdmin();fillMailAdmin();applyPledgeForm();renderAll()},showDbError);
   ROOT.child('companies').on('value',s=>{addedCompanies=s.val()||{};refreshCompanies();fillAdminLists()});
   if(session.role==='admin')ROOT.child('users').on('value',s=>{users=s.val()||{};renderUsers()},showDbError);
