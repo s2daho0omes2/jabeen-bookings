@@ -575,7 +575,12 @@ function fileRoute_(body) {
   throw new Error('إجراء غير معروف');
 }
 function folderByName_(parent, name) { var it = parent.getFoldersByName(name); return it.hasNext() ? it.next() : parent.createFolder(name); }
-function fileFolder_(natId) { return folderByName_(folderByName_(DriveApp.getRootFolder(), FILE_ROOT_NAME), natId); }
+function fileRoot_() { // المجلد الجذري للمستندات يُحفظ برقمه في Script Properties فيبقى صالحاً بعد نقل الملكية لحساب آخر
+  var props = PropertiesService.getScriptProperties(), id = props.getProperty('FILE_ROOT_ID');
+  if (id) { try { var f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {} }
+  var root = folderByName_(DriveApp.getRootFolder(), FILE_ROOT_NAME); props.setProperty('FILE_ROOT_ID', root.getId()); return root;
+}
+function fileFolder_(natId) { return folderByName_(fileRoot_(), natId); }
 function fbPushKey_(url, obj) {
   var r = UrlFetchApp.fetch(url + '.json', { method: 'post', contentType: 'application/json', headers: fbHeaders_(), payload: JSON.stringify(obj), muteHttpExceptions: true });
   if (r.getResponseCode() !== 200) throw new Error('DB push ' + r.getResponseCode());
@@ -619,4 +624,9 @@ function fileDelete_(emp, natId, fid) {
 function testDriveFolder() {
   var f = fileFolder_('1000000000'); var id = f.getId(); f.setTrashed(true);
   return 'Drive OK · ' + id;
+}
+/** بعد نقل الملكية: شغّلها مرة واحدة من الحساب الجديد لإنشاء المؤقتات باسمه (المزامنة كل 5 دقائق + التقرير اليومي) */
+function setupAllTriggers() {
+  setupTrigger(); setupReportTrigger();
+  return ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }).join(', ') + ' · المالك: ' + Session.getEffectiveUser().getEmail();
 }
