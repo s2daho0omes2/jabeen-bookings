@@ -584,9 +584,9 @@ function folderById_(prop, parent, name) { // مجلد محفوظ برقمه ف�
 function systemFolder_() { return folderById_('SYSTEM_FOLDER_ID', DriveApp.getRootFolder(), SYSTEM_FOLDER_NAME); }
 function fileRoot_() { return folderById_('FILE_ROOT_ID', systemFolder_(), FILE_ROOT_NAME); }
 function safeName_(t) { return String(t || '').replace(/[\\\/:*?"<>|#%]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80); }
-/** مجلد العميل: «رقم الهوية - الاسم»، ويُعاد تسميته إذا تغيّر الاسم */
-function fileFolder_(natId, name) {
-  var root = fileRoot_(), want = natId + (name ? ' - ' + safeName_(name) : ''), it = root.searchFolders("title contains '" + natId + "' and trashed = false");
+/** مجلد العميل: «رقم الهوية - الاسم - كود الحجز»، ويُعاد تسميته إذا تغيّر الاسم أو كود الحجز */
+function fileFolder_(natId, name, ref) {
+  var root = fileRoot_(), want = [natId, safeName_(name), safeName_(ref)].filter(String).join(' - '), it = root.searchFolders("title contains '" + natId + "' and trashed = false");
   while (it.hasNext()) { var f = it.next(); if (f.getName().indexOf(natId) === 0) { if (name && f.getName() !== want) f.setName(want); return f; } }
   return root.createFolder(want);
 }
@@ -601,12 +601,12 @@ function fileUpload_(emp, natId, body) {
   if (bytes.length > FILE_MAX) throw new Error('حجم الملف يتجاوز 3 ميجابايت');
   var mime = String(body.mime || '');
   if (!FILE_MIME_OK.test(mime) || String.fromCharCode.apply(null, bytes.slice(0, 4).map(function (b) { return b & 255; })) !== '%PDF') throw new Error('المسموح ملفات PDF فقط');
-  var label = safeName_(body.label || 'أخرى') || 'أخرى', cname = safeName_(body.cname || '');
+  var label = safeName_(body.label || 'أخرى') || 'أخرى', cname = safeName_(body.cname || ''), ref = safeName_(body.ref || '');
   var orig = String(body.name || 'file.pdf').slice(0, 120);
-  var name = [label, cname, natId, Utilities.formatDate(new Date(), 'Asia/Riyadh', 'yyyy-MM-dd_HHmm')].filter(String).join(' - ') + '.pdf';
-  var f = fileFolder_(natId, cname).createFile(Utilities.newBlob(bytes, 'application/pdf', name));
+  var name = [label, cname, natId, ref, Utilities.formatDate(new Date(), 'Asia/Riyadh', 'yyyy-MM-dd_HHmm')].filter(String).join(' - ') + '.pdf';
+  var f = fileFolder_(natId, cname, ref).createFile(Utilities.newBlob(bytes, 'application/pdf', name));
   f.setDescription(label + ' · ' + natId + ' · رفعه ' + emp.email);
-  var rec = { name: name, orig: orig, mime: 'application/pdf', size: bytes.length, label: label, driveId: f.getId(), at: Date.now(), by: emp.name, byEmail: emp.email };
+  var rec = { name: name, orig: orig, ref: ref, mime: 'application/pdf', size: bytes.length, label: label, driveId: f.getId(), at: Date.now(), by: emp.name, byEmail: emp.email };
   var fid = fbPushKey_(FIREBASE + '/customers/' + natId + '/files', rec);
   audit_(emp, 'رفع مستند عميل', '', '', label + ' · ' + name + ' · ' + natId);
   return { ok: true, fid: fid, file: rec };
