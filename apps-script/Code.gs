@@ -562,9 +562,10 @@ function writeSheet_(ss, name, head, rows) {
 function ts_(ms) { return ms ? Utilities.formatDate(new Date(ms), 'Asia/Riyadh', 'yyyy-MM-dd HH:mm') : ''; }
 
 /* ---------- مستندات العملاء: تُحفظ في Google Drive لحساب مالك السكربت، وتُسجَّل بياناتها في Firebase ---------- */
-var FILE_MAX = 10 * 1024 * 1024;                 // 10 ميجابايت
-var FILE_ROOT_NAME = 'jabeen-bookings-attachments';
-var FILE_MIME_OK = /^(application\/pdf|image\/(jpeg|png|webp|heic|heif))$/;
+var FILE_MAX = 3 * 1024 * 1024;                  // 3 ميجابايت لكل ملف
+var SYSTEM_FOLDER_NAME = 'نظام حجوزات جبين';       // المجلد الرئيسي في Drive: يضم المستندات والنسخ الاحتياطية
+var FILE_ROOT_NAME = 'مستندات العملاء';
+var FILE_MIME_OK = /^application\/pdf$/;
 function fileRoute_(body) {
   var emp = employee_(body.idToken);
   var natId = String(body.natId || '').replace(/\D/g, '');
@@ -575,12 +576,20 @@ function fileRoute_(body) {
   throw new Error('إجراء غير معروف');
 }
 function folderByName_(parent, name) { var it = parent.getFoldersByName(name); return it.hasNext() ? it.next() : parent.createFolder(name); }
-function fileRoot_() { // المجلد الجذري للمستندات يُحفظ برقمه في Script Properties فيبقى صالحاً بعد نقل الملكية لحساب آخر
-  var props = PropertiesService.getScriptProperties(), id = props.getProperty('FILE_ROOT_ID');
+function folderById_(prop, parent, name) { // مجلد محفوظ برقمه في Script Properties (يبقى صالحاً بعد نقل الملكية أو إعادة التسمية)
+  var props = PropertiesService.getScriptProperties(), id = props.getProperty(prop);
   if (id) { try { var f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {} }
-  var root = folderByName_(DriveApp.getRootFolder(), FILE_ROOT_NAME); props.setProperty('FILE_ROOT_ID', root.getId()); return root;
+  var created = folderByName_(parent, name); props.setProperty(prop, created.getId()); return created;
 }
-function fileFolder_(natId) { return folderByName_(fileRoot_(), natId); }
+function systemFolder_() { return folderById_('SYSTEM_FOLDER_ID', DriveApp.getRootFolder(), SYSTEM_FOLDER_NAME); }
+function fileRoot_() { return folderById_('FILE_ROOT_ID', systemFolder_(), FILE_ROOT_NAME); }
+function safeName_(t) { return String(t || '').replace(/[\\\/:*?"<>|#%]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80); }
+/** مجلد العميل: «رقم الهوية - الاسم»، ويُعاد تسميته إذا تغيّر الاسم */
+function fileFolder_(natId, name) {
+  var root = fileRoot_(), want = natId + (name ? ' - ' + safeName_(name) : ''), it = root.searchFolders("title contains '" + natId + "' and trashed = false");
+  while (it.hasNext()) { var f = it.next(); if (f.getName().indexOf(natId) === 0) { if (name && f.getName() !== want) f.setName(want); return f; } }
+  return root.createFolder(want);
+}
 function fbPushKey_(url, obj) {
   var r = UrlFetchApp.fetch(url + '.json', { method: 'post', contentType: 'application/json', headers: fbHeaders_(), payload: JSON.stringify(obj), muteHttpExceptions: true });
   if (r.getResponseCode() !== 200) throw new Error('DB push ' + r.getResponseCode());
@@ -589,15 +598,15 @@ function fbPushKey_(url, obj) {
 function fileUpload_(emp, natId, body) {
   var bytes = Utilities.base64Decode(String(body.data || ''));
   if (!bytes.length) throw new Error('الملف فارغ');
-  if (bytes.length > FILE_MAX) throw new Error('حجم الملف يتجاوز 10 ميجابايت');
+  if (bytes.length > FILE_MAX) throw new Error('حجم الملف يتجاوز 3 ميجابايت');
   var mime = String(body.mime || '');
-  if (!FILE_MIME_OK.test(mime)) throw new Error('نوع الملف غير مسموح: PDF أو صورة (JPG/PNG) فقط');
-  var name = String(body.name || 'file').replace(/[\\\/:*?"<>|]/g, '_').slice(0, 120);
-  var label = String(body.label || 'أخرى').slice(0, 60);
-  if (!/^[12]\d{9}$/.test(natId)) throw new Error('رقم هوية غير صالح');
-  var f = fileFolder_(natId).createFile(Utilities.newBlob(bytes, mime, name));
+  if (!FILE_MIME_OK.test(mime) || String.fromCharCode.apply(null, bytes.slice(0, 4).map(function (b) { return b & 255; })) !== '%PDF') throw new Error('المسموح ملفات PDF فقط');
+  var label = safeName_(body.label || 'أخرى') || 'أخرى', cname = safeName_(body.cname || '');
+  var orig = String(body.name || 'file.pdf').slice(0, 120);
+  var name = [label, cname, natId, Utilities.formatDate(new Date(), 'Asia/Riyadh', 'yyyy-MM-dd_HHmm')].filter(String).join(' - ') + '.pdf';
+  var f = fileFolder_(natId, cname).createFile(Utilities.newBlob(bytes, 'application/pdf', name));
   f.setDescription(label + ' · ' + natId + ' · رفعه ' + emp.email);
-  var rec = { name: name, mime: mime, size: bytes.length, label: label, driveId: f.getId(), at: Date.now(), by: emp.name, byEmail: emp.email };
+  var rec = { name: name, orig: orig, mime: 'application/pdf', size: bytes.length, label: label, driveId: f.getId(), at: Date.now(), by: emp.name, byEmail: emp.email };
   var fid = fbPushKey_(FIREBASE + '/customers/' + natId + '/files', rec);
   audit_(emp, 'رفع مستند عميل', '', '', label + ' · ' + name + ' · ' + natId);
   return { ok: true, fid: fid, file: rec };
@@ -638,12 +647,15 @@ function setupAllTriggers() {
  * الاسترجاع: listBackups() لعرض النسخ، ثم restoreFromBackup('اسم الملف') من المحرر — أو استيراد JSON يدوياً من لوحة Firebase.
  * backupExport: يعطي النسخة الحالية لسكربت النسخ على اللابتوب برمز سري BACKUP_TOKEN في Script Properties.
  */
-var BACKUP_FOLDER_NAME = 'jabeen-bookings-backups';
+var BACKUP_FOLDER_NAME = 'النسخ الاحتياطية';
 var BACKUP_KEEP_DAYS = 60;
-function backupFolder_() {
-  var props = PropertiesService.getScriptProperties(), id = props.getProperty('BACKUP_FOLDER_ID');
-  if (id) { try { var f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {} }
-  var root = folderByName_(DriveApp.getRootFolder(), BACKUP_FOLDER_NAME); props.setProperty('BACKUP_FOLDER_ID', root.getId()); return root;
+function backupFolder_() { return folderById_('BACKUP_FOLDER_ID', systemFolder_(), BACKUP_FOLDER_NAME); }
+/** شغّلها مرة: تنقل مجلد النسخ الاحتياطية إلى المجلد الرئيسي «نظام حجوزات جبين» وتسمّيه بالعربي */
+function organizeDrive() {
+  var sys = systemFolder_(), bk = backupFolder_(), docs = fileRoot_();
+  try { bk.moveTo(sys); } catch (e) {}
+  bk.setName(BACKUP_FOLDER_NAME);
+  return sys.getName() + ' ← ' + bk.getName() + ' + ' + docs.getName() + ' · ' + sys.getUrl();
 }
 function dbSnapshot_() {
   var r = UrlFetchApp.fetch(DB_ROOT + '/.json', { headers: fbHeaders_(), muteHttpExceptions: true });
@@ -751,7 +763,7 @@ function ensureRestoreGuide_(folder) {
     '- jabeen-rules-*.json : قواعد الأمان لقاعدة Firebase.',
     '- jabeen-sheet-bookings-*.xlsx و jabeen-sheet-allocation-*.xlsx : نسخة من الجدولين.',
     '- jabeen-site-*.zip : كود الموقع كاملاً مع كود السكربت (مجلد apps-script) — أسبوعياً.',
-    'المستندات المرفوعة للعملاء محفوظة في مجلد jabeen-bookings-attachments في نفس Drive.',
+    'المستندات المرفوعة للعملاء محفوظة في مجلد «مستندات العملاء» بجانب هذا المجلد، داخل «نظام حجوزات جبين».',
     '',
     'استرجاع قاعدة البيانات:',
     '1) افتح السكربت: من جدول «حجوزات جبين» > الإضافات > Apps Script.',
