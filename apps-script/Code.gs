@@ -627,6 +627,6 @@ function testDriveFolder() {
 }
 /** بعد نقل الملكية: شغّلها مرة واحدة من الحساب الجديد لإنشاء المؤقتات باسمه (المزامنة كل 5 دقائق + التقرير اليومي) */
 function setupAllTriggers() {
-  setupTrigger(); setupReportTrigger();
+  setupTrigger(); setupReportTrigger(); setupMailTrigger();
   return ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }).join(', ') + ' · المالك: ' + Session.getEffectiveUser().getEmail();
 }
