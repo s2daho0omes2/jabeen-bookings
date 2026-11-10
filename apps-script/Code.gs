@@ -659,9 +659,10 @@ function dailyBackup() {
     var name = 'jabeen-db-' + Utilities.formatDate(new Date(at), 'Asia/Riyadh', 'yyyy-MM-dd_HHmm') + '.json';
     var gz = Utilities.gzip(Utilities.newBlob(snap.txt, 'application/json', name), name + '.gz');
     var file = backupFolder_().createFile(gz);
+    var extras = backupExtras_(at);
     var cut = at - BACKUP_KEEP_DAYS * 86400000, removed = 0, it = backupFolder_().getFiles();
-    while (it.hasNext()) { var f = it.next(); if (/^jabeen-db-/.test(f.getName()) && f.getDateCreated().getTime() < cut) { f.setTrashed(true); removed++; } }
-    status = { at: at, ok: true, file: file.getName(), bytes: snap.txt.length, gzBytes: file.getSize(), bookings: Object.keys(jb.bookings || {}).length, units: Object.keys(jb.master || {}).length, customers: Object.keys(jb.customers || {}).length, removed: removed };
+    while (it.hasNext()) { var f = it.next(); if (/^jabeen-(db|rules|sheet|site)-/.test(f.getName()) && f.getDateCreated().getTime() < cut) { f.setTrashed(true); removed++; } }
+    status = { at: at, ok: true, file: file.getName(), bytes: snap.txt.length, gzBytes: file.getSize(), bookings: Object.keys(jb.bookings || {}).length, units: Object.keys(jb.master || {}).length, customers: Object.keys(jb.customers || {}).length, removed: removed, extras: extras.ok, extrasFailed: extras.failed };
   } catch (e) {
     status.error = String(e.message || e);
     try { if (SUPER_ADMIN) sendMail_(SUPER_ADMIN, '⚠️ فشل النسخ الاحتياطي لنظام حجوزات جبين', '<div dir="rtl">فشل النسخ الاحتياطي اليومي: ' + escH_(status.error) + '<br>' + tsAr_(at) + '</div>'); } catch (e2) {}
@@ -709,4 +710,57 @@ function setupBackupToken() {
   var props = PropertiesService.getScriptProperties(), tok = props.getProperty('BACKUP_TOKEN');
   if (!tok) { tok = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''); props.setProperty('BACKUP_TOKEN', tok); }
   Logger.log(tok); return tok;
+}
+/* مكونات النظام الأخرى مع النسخة اليومية: قواعد الأمان، الجدولان بصيغة Excel، وكود الموقع والسكربت (أسبوعياً يوم الجمعة أو إذا لم توجد نسخة) */
+var SITE_REPO_ZIP = 'https://codeload.github.com/s2daho0omes2/jabeen-bookings/zip/refs/heads/main';
+function backupExtras_(at) {
+  var folder = backupFolder_(), stamp = Utilities.formatDate(new Date(at), 'Asia/Riyadh', 'yyyy-MM-dd_HHmm'), ok = [], failed = [];
+  var auth = { headers: fbHeaders_(), muteHttpExceptions: true };
+  function save(label, fn) { try { fn(); ok.push(label); } catch (e) { failed.push(label + ': ' + String(e.message || e).slice(0, 120)); } }
+  save('rules', function () {
+    var r = UrlFetchApp.fetch(DB_ROOT + '/.settings/rules.json', auth);
+    if (r.getResponseCode() !== 200) throw new Error('HTTP ' + r.getResponseCode());
+    folder.createFile('jabeen-rules-' + stamp + '.json', r.getContentText(), 'application/json');
+  });
+  function sheet(label, id) {
+    save(label, function () {
+      var r = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx', auth);
+      if (r.getResponseCode() !== 200) throw new Error('HTTP ' + r.getResponseCode());
+      folder.createFile(r.getBlob().setName('jabeen-sheet-' + label + '-' + stamp + '.xlsx'));
+    });
+  }
+  try { sheet('bookings', SpreadsheetApp.getActiveSpreadsheet().getId()); } catch (e) { failed.push('bookings sheet: ' + e.message); }
+  sheet('allocation', ALLOC_SHEET_ID);
+  var weekly = Utilities.formatDate(new Date(at), 'Asia/Riyadh', 'u') === '5' || !folder.searchFiles("title contains 'jabeen-site-' and trashed = false").hasNext();
+  if (weekly) save('site', function () {
+    var r = UrlFetchApp.fetch(SITE_REPO_ZIP, { muteHttpExceptions: true });
+    if (r.getResponseCode() !== 200) throw new Error('HTTP ' + r.getResponseCode());
+    folder.createFile(r.getBlob().setName('jabeen-site-' + stamp + '.zip'));
+  });
+  ensureRestoreGuide_(folder);
+  return { ok: ok.join(','), failed: failed.join(' | ') };
+}
+function ensureRestoreGuide_(folder) {
+  var name = '00-دليل-الاسترجاع.txt';
+  if (folder.getFilesByName(name).hasNext()) return;
+  folder.createFile(name, [
+    'دليل استرجاع نظام حجوزات مشروع جبين',
+    '',
+    'محتوى هذا المجلد (يُحدَّث يومياً الساعة 2 فجراً، ويُحتفظ بآخر 60 يوماً):',
+    '- jabeen-db-*.json.gz : قاعدة البيانات كاملة (الحجوزات، العملاء، التعهدات، المستخدمون، الإعدادات، سجل التدقيق).',
+    '- jabeen-rules-*.json : قواعد الأمان لقاعدة Firebase.',
+    '- jabeen-sheet-bookings-*.xlsx و jabeen-sheet-allocation-*.xlsx : نسخة من الجدولين.',
+    '- jabeen-site-*.zip : كود الموقع كاملاً مع كود السكربت (مجلد apps-script) — أسبوعياً.',
+    'المستندات المرفوعة للعملاء محفوظة في مجلد jabeen-bookings-attachments في نفس Drive.',
+    '',
+    'استرجاع قاعدة البيانات:',
+    '1) افتح السكربت: من جدول «حجوزات جبين» > الإضافات > Apps Script.',
+    '2) شغّل listBackups لعرض النسخ، ثم اكتب اسم الملف في RESTORE_FILE وشغّل restoreFromBackup.',
+    '   أو يدوياً: فك ضغط الملف، ثم في لوحة Firebase > Realtime Database > ⋮ > Import JSON على الجذر.',
+    '',
+    'استرجاع قواعد الأمان: لوحة Firebase > Realtime Database > Rules > الصق محتوى jabeen-rules-*.json > Publish.',
+    'استرجاع الموقع: ارفع محتوى jabeen-site-*.zip إلى مستودع GitHub (s2daho0omes2/jabeen-bookings) مع تفعيل GitHub Pages والدومين jabeen-bookings.online.',
+    'استرجاع السكربت: انسخ apps-script/Code.gs و appsscript.json من ملف الموقع إلى محرر Apps Script، ثم شغّل setupAllTriggers وانشر نسخة جديدة.',
+    'الإعدادات السرية (Script Properties): RESEND_KEY من حساب Resend، ADMIN_EMAIL، BACKUP_TOKEN (تُنشأ بـ setupBackupToken).'
+  ].join('\n'), 'text/plain');
 }
