@@ -651,7 +651,11 @@ try{if(localStorage.getItem('jb-theme')==='dark')document.documentElement.datase
 $('themeBtn').onclick=()=>{const d=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=d?'':'dark';try{localStorage.setItem('jb-theme',d?'light':'dark')}catch(e){}};
 
 /* ===== Connection ===== */
-db.ref('.info/connected').on('value',s=>{const on=!!s.val();$('connDot').className='dot'+(on?' on':'');$('connTxt').textContent=on?'متصل':'غير متصل'});
+let connWasOn=false,connT0=Date.now(),connTimer=null; // لا نظهر «غير متصل» في الثواني الأولى قبل فتح الاتصال
+function setConn(on){clearTimeout(connTimer);if(on){connWasOn=true;$('connDot').className='dot on';$('connTxt').textContent='متصل';return}
+  const wait=connWasOn?3000:Math.max(0,8000-(Date.now()-connT0));$('connDot').className='dot';$('connTxt').textContent=connWasOn?'إعادة الاتصال…':'جارٍ الاتصال…';
+  connTimer=setTimeout(()=>{$('connTxt').textContent='غير متصل';$('connPill').title='لا يوجد اتصال بقاعدة البيانات: تحقق من الإنترنت أو حدّث الصفحة'},wait)}
+db.ref('.info/connected').on('value',s=>setConn(!!s.val()));
 
 /* ===== Login ===== */
 function showDbError(e){
