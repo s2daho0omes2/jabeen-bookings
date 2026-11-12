@@ -2,13 +2,14 @@
   "rules": {
     "jabeenBookings": {
       ".read": "auth != null && auth.token.email_verified == true && (root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/super').val() == true || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists())",
-      ".write": "auth != null && auth.token.email_verified == true && (root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/super').val() == true || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'admin')",
       "bookings": {
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/super').val() == true || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'admin')",
         "$bid": {
           ".write": "newData.exists() && auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists() && ((!data.exists() && newData.child('status').val() == 'pending' && newData.child('makerEmail').val() == auth.token.email.toLowerCase() && root.child('jabeenBookings/master/' + newData.child('unitId').val()).exists() && newData.child('price').val() == root.child('jabeenBookings/master/' + newData.child('unitId').val()).child('price').val() && newData.child('district').val() == root.child('jabeenBookings/master/' + newData.child('unitId').val()).child('district').val() && newData.child('block').val() == root.child('jabeenBookings/master/' + newData.child('unitId').val()).child('block').val() && newData.child('model').val() == root.child('jabeenBookings/master/' + newData.child('unitId').val()).child('model').val() && (root.child('jabeenBookings/master/' + newData.child('unitId').val()).child('company').val() == 'غير مخصصة' || newData.child('company').val() == root.child('jabeenBookings/master/' + newData.child('unitId').val()).child('company').val()) && newData.child('natId').isString() && newData.child('natId').val().matches(/^[12][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$/)) || (data.child('status').val() == 'pending' && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'checker' && data.child('makerEmail').val() != auth.token.email.toLowerCase() && (newData.child('status').val() == 'approved' || newData.child('status').val() == 'rejected') && (newData.child('status').val() != 'approved' || root.child('jabeenBookings/config/pledge/enabled').val() != true || root.child('jabeenBookings/config/pledge/requireForApproval').val() != true || root.child('jabeenBookings/pledges/' + $bid + '/state').val() == 'confirmed' || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/bypassPledge').val() == true) && newData.child('checkerEmail').val() == auth.token.email.toLowerCase() && newData.child('unitId').val() == data.child('unitId').val() && newData.child('natId').val() == data.child('natId').val() && newData.child('name').val() == data.child('name').val() && newData.child('company').val() == data.child('company').val() && newData.child('price').val() == data.child('price').val() && newData.child('district').val() == data.child('district').val() && newData.child('block').val() == data.child('block').val() && newData.child('model').val() == data.child('model').val() && newData.child('refNo').val() == data.child('refNo').val() && newData.child('maker').val() == data.child('maker').val() && newData.child('makerEmail').val() == data.child('makerEmail').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('bookingDate').val() == data.child('bookingDate').val() && newData.child('payMethod').val() == data.child('payMethod').val() && newData.child('phone').val() == data.child('phone').val() && newData.child('empNo').val() == data.child('empNo').val()) || (data.child('status').val() == 'pending' && data.child('makerEmail').val() == auth.token.email.toLowerCase() && newData.child('status').val() == 'cancelled' && newData.child('checkerEmail').val() == auth.token.email.toLowerCase() && newData.child('unitId').val() == data.child('unitId').val() && newData.child('natId').val() == data.child('natId').val() && newData.child('name').val() == data.child('name').val() && newData.child('company').val() == data.child('company').val() && newData.child('price').val() == data.child('price').val() && newData.child('district').val() == data.child('district').val() && newData.child('block').val() == data.child('block').val() && newData.child('model').val() == data.child('model').val() && newData.child('refNo').val() == data.child('refNo').val() && newData.child('maker').val() == data.child('maker').val() && newData.child('makerEmail').val() == data.child('makerEmail').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('bookingDate').val() == data.child('bookingDate').val() && newData.child('payMethod').val() == data.child('payMethod').val() && newData.child('phone').val() == data.child('phone').val() && newData.child('empNo').val() == data.child('empNo').val()))"
         }
       },
       "idx": {
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/super').val() == true || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'admin')",
         "unit": {
           "$u": {
             ".write": "auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists() && (!data.exists() || newData.val() == data.val() || !root.child('jabeenBookings/bookings/' + data.val()).exists() || (root.child('jabeenBookings/bookings/' + data.val()).child('status').val() != 'pending' && root.child('jabeenBookings/bookings/' + data.val()).child('status').val() != 'approved'))"
@@ -21,6 +22,7 @@
         }
       },
       "counters": {
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/super').val() == true || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'admin')",
         "booking": {
           ".write": "auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists() && newData.isNumber() && newData.val() == (data.exists() ? data.val() + 1 : 1)"
         }
@@ -31,6 +33,7 @@
         }
       },
       "users": {
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/super').val() == true || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'admin')",
         "$k": {
           "super": {
             ".validate": "newData.val() == data.val()"
@@ -41,6 +44,7 @@
         }
       },
       "customers": {
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/super').val() == true || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'admin')",
         "$n": {
           "profile": {
             ".write": "auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists() && newData.exists() && newData.child('byEmail').val() == auth.token.email.toLowerCase() && newData.child('name').isString() && newData.child('name').val().length >= 3 && newData.child('name').val().length < 120 && $n.matches(/^[12][0-9]{9}$/)"
@@ -63,9 +67,13 @@
         }
       },
       "companies": {
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/super').val() == true || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'admin')",
         "$id": {
           ".write": "!data.exists() && newData.isString() && newData.val().length > 1 && newData.val().length < 100 && auth != null && auth.token.email_verified == true && root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').exists()"
         }
+      },
+      "$other": {
+        ".write": "$other != 'audit' && (auth != null && auth.token.email_verified == true && (root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/super').val() == true || root.child('jabeenBookings/users/' + auth.token.email.toLowerCase().replace('.', ',') + '/role').val() == 'admin'))"
       }
     },
     "$other": {

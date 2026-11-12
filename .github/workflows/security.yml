@@ -46,3 +46,15 @@ jobs:
           allow_issue_writing: false
           fail_action: false
           cmd_options: '-a'
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Database rules tests (Firebase emulator)
+        run: |
+          npm i --no-save firebase-tools@13 @firebase/rules-unit-testing@3 firebase@10.12.2
+          npx firebase emulators:exec --only database --project demo-jb "node tests/rules.test.mjs database.rules.json"
