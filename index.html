@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex,nofollow">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.google.com https://apis.google.com https://*.firebasedatabase.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com https://script.google.com https://script.googleusercontent.com https://www.google.com https://www.gstatic.com; frame-src https://jabeen-bookings.firebaseapp.com https://*.firebasedatabase.app https://www.google.com https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+<script>if(location.protocol==='http:'&&!/^(localhost|127\.)/.test(location.hostname))location.replace('https:'+location.href.slice(5))</script>
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <title>مدار الحجوزات · مشروع جبين</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox="0 0 100 92" width="46" height="42" role="img" aria-label="%D9%85%D8%AF%D8%A7%D8%B1 %D8%A7%D9%84%D8%AD%D8%AC%D9%88%D8%B2%D8%A7%D8%AA"%3E%3Cdefs%3E%3CclipPath id="mdO0"%3E%3Cpath d="M10 0H88a12 12 0 0 1 12 12V80L88 92H10A10 10 0 0 1 0 82V10A10 10 0 0 1 10 0Z"/%3E%3C/clipPath%3E%3Cmask id="mdM0" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="92"%3E%3Crect width="100" height="92" fill="#fff"/%3E%3Crect x="28" y="22" width="44" height="44" fill="#000"/%3E%3Cpath d="M0 63L28 51V92H0Z" fill="#000"/%3E%3C/mask%3E%3C/defs%3E%3Cg clip-path="url%28#mdO0%29"%3E%3Crect width="100" height="92" fill="#16232e" mask="url%28#mdM0%29"/%3E%3Cpath d="M0 69L28 57V92H0Z" fill="#2a8a8a"/%3E%3C/g%3E%3C/svg%3E">
@@ -707,12 +708,19 @@ async function completeLink(email){
   catch(e){lgShow('lgStep1');lgErr(authErrAr(e))}
   finally{history.replaceState(null,'',location.origin+location.pathname);try{localStorage.removeItem('jb-emailForSignIn')}catch(e){}}
 }
+// حد محاولات الدخول في هذا المتصفح (إضافة لحد Firebase على الخادم): 5 محاولات خاطئة = إيقاف 5 دقائق
+const LG_MAX_FAILS=5,LG_LOCK_MS=5*60*1000;
+function lgFails(){try{return JSON.parse(localStorage.getItem('jb-lgFails')||'{}')}catch(e){return{}}}
+function lgSetFails(o){try{localStorage.setItem('jb-lgFails',JSON.stringify(o))}catch(e){}}
 async function pwLogin(){
   const email=$('lgEmail').value.trim().toLowerCase(),pw=$('lgPass').value;lgErr('');
   if(!validEmail(email))return lgErr('اكتب بريد صحيح');
   if(!pw)return lgErr('اكتب كلمة المرور');
+  const f=lgFails();if(f.until&&f.until>Date.now())return lgErr('محاولات خاطئة كثيرة، حاول بعد '+Math.ceil((f.until-Date.now())/60000)+' دقيقة');
   $('lgPwBtn').disabled=true;
-  try{await authReady;await auth.signInWithEmailAndPassword(email,pw)}catch(e){lgErr(authErrAr(e))}finally{$('lgPwBtn').disabled=false}
+  try{await authReady;await auth.signInWithEmailAndPassword(email,pw);lgSetFails({})}
+  catch(e){const c=String(e&&e.code||'');if(/wrong-password|invalid-credential|invalid-login|user-not-found/.test(c)){const n=(f.n||0)+1;lgSetFails(n>=LG_MAX_FAILS?{n:0,until:Date.now()+LG_LOCK_MS}:{n})}lgErr(/too-many-requests/.test(c)?'محاولات كثيرة، تم إيقاف الدخول مؤقتاً لحماية الحساب. حاول لاحقاً':authErrAr(e))}
+  finally{$('lgPwBtn').disabled=false}
 }
 async function sendReset(){
   const email=$('lgEmail').value.trim().toLowerCase();lgErr('');
@@ -731,7 +739,8 @@ $('lgConfirmBtn').onclick=()=>{const em=$('lgConfirmEmail').value.trim().toLower
 $('lgNameBtn').onclick=async()=>{const n=$('lgName').value.trim();if(n.length<3)return lgErr('اكتب اسمك');
   try{await ROOT.child('users/'+me.key+'/name').set(n)}catch(e){}
   begin(n)};
-$('logoutBtn').onclick=()=>auth.signOut();
+async function signOutLogged(why){try{if(session)await ROOT.child('audit').push({at:Date.now(),who:session.name,whoEmail:session.email,role:session.role,action:why||'تسجيل خروج',unitId:'',bid:'',details:''})}catch(e){}try{sessionStorage.removeItem('jb-loginLogged')}catch(e){}return auth.signOut()}
+$('logoutBtn').onclick=()=>signOutLogged('تسجيل خروج');
 auth.onAuthStateChanged(async user=>{
   if(!user){if(session)location.reload();return}
   const email=String(user.email||'').toLowerCase();
@@ -748,8 +757,10 @@ async function begin(name){
   session={role:me.rec.role,name,email:me.email};
   try{await loadMaster()}catch(e){showDbError(e)}
   enterApp();
+  // سجل دخول واحد لكل جلسة متصفح (لا يتكرر مع تحديث الصفحة)
+  try{if(!sessionStorage.getItem('jb-loginLogged')){sessionStorage.setItem('jb-loginLogged','1');log('تسجيل دخول','','',navigator.userAgent.slice(0,120))}}catch(e){}
   if(KEEP_SESSION)return;
-  let t;const reset=()=>{clearTimeout(t);t=setTimeout(()=>auth.signOut(),IDLE_MS)};
+  let t;const reset=()=>{clearTimeout(t);t=setTimeout(()=>signOutLogged('خروج تلقائي بعد عدم النشاط'),IDLE_MS)};
   ['mousemove','keydown','click','touchstart','scroll'].forEach(ev=>addEventListener(ev,reset,{passive:true}));reset();
 }
 if(auth.isSignInWithEmailLink(location.href)){

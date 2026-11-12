@@ -641,7 +641,7 @@ function testDriveFolder() {
 }
 /** بعد نقل الملكية: شغّلها مرة واحدة من الحساب الجديد لإنشاء المؤقتات باسمه (المزامنة كل 5 دقائق + التقرير اليومي) */
 function setupAllTriggers() {
-  setupTrigger(); setupReportTrigger(); setupMailTrigger(); setupBackupTrigger();
+  setupTrigger(); setupReportTrigger(); setupMailTrigger(); setupBackupTrigger(); setupRestoreTestTrigger();
   return ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }).join(', ') + ' · المالك: ' + Session.getEffectiveUser().getEmail();
 }
 
@@ -714,6 +714,37 @@ function restoreFromBackup(fileName) {
   if (r.getResponseCode() !== 200) throw new Error('فشل الاسترجاع ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200));
   audit_(null, 'استرجاع قاعدة البيانات من نسخة احتياطية', '', '', fileName);
   return 'تم الاسترجاع من ' + fileName + ' · الحجوزات: ' + Object.keys(data.jabeenBookings.bookings || {}).length;
+}
+/** اختبار الاستعادة (أسبوعي، لا يغيّر قاعدة البيانات): يفتح أحدث نسخة، يفك ضغطها، يتأكد أنها سليمة،
+ *  ويقارن أعداد الحجوزات والعملاء والوحدات بالقاعدة الحالية. النتيجة في restoreTest وسجل التدقيق،
+ *  وتصل رسالة لمدير النظام إذا فشل الاختبار. */
+function verifyBackupRestore() {
+  var at = Date.now(), res = { at: at, ok: false };
+  try {
+    var latest = null, it = backupFolder_().getFiles();
+    while (it.hasNext()) { var f = it.next(); if (/^jabeen-db-.*\.json\.gz$/.test(f.getName()) && (!latest || f.getDateCreated() > latest.getDateCreated())) latest = f; }
+    if (!latest) throw new Error('لا توجد نسخة احتياطية لقاعدة البيانات');
+    var ageH = Math.round((at - latest.getDateCreated().getTime()) / 3600000);
+    var txt = Utilities.ungzip(latest.getBlob().setContentType('application/x-gzip')).getDataAsString('UTF-8');
+    var data = JSON.parse(txt); if (!data || !data.jabeenBookings) throw new Error('النسخة لا تحتوي jabeenBookings');
+    var b = data.jabeenBookings, live = dbSnapshot_().data.jabeenBookings;
+    var cnt = function (o, k) { return Object.keys((o || {})[k] || {}).length; };
+    res = { at: at, ok: true, file: latest.getName(), ageHours: ageH,
+      backup: { bookings: cnt(b, 'bookings'), customers: cnt(b, 'customers'), units: cnt(b, 'master'), audit: cnt(b, 'audit') },
+      live: { bookings: cnt(live, 'bookings'), customers: cnt(live, 'customers'), units: cnt(live, 'master'), audit: cnt(live, 'audit') } };
+    if (ageH > 36) { res.ok = false; res.error = 'أحدث نسخة عمرها ' + ageH + ' ساعة'; }
+    else if (res.backup.units !== res.live.units) { res.ok = false; res.error = 'عدد الوحدات في النسخة لا يطابق القاعدة'; }
+    else if (res.backup.bookings > res.live.bookings) { res.ok = false; res.error = 'النسخة فيها حجوزات أكثر من القاعدة الحالية — راجع احتمال حذف'; }
+  } catch (e) { res.error = String(e.message || e); }
+  try { fbWrite_(FIREBASE + '/restoreTest', res); } catch (e) {}
+  try { audit_(null, 'اختبار استعادة النسخة الاحتياطية', '', '', (res.ok ? 'ناجح' : 'فشل: ' + res.error) + (res.file ? ' · ' + res.file : '')); } catch (e) {}
+  if (!res.ok) { try { if (SUPER_ADMIN) sendMail_(SUPER_ADMIN, '⚠️ فشل اختبار استعادة النسخة الاحتياطية', '<div dir="rtl">' + escH_(res.error || '') + '<br>' + tsAr_(at) + '</div>'); } catch (e) {} }
+  return res;
+}
+function setupRestoreTestTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'verifyBackupRestore') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('verifyBackupRestore').timeBased().onWeekDay(ScriptApp.WeekDay.SATURDAY).atHour(4).inTimezone('Asia/Riyadh').create();
+  return 'تم: اختبار الاستعادة كل سبت 4 فجراً';
 }
 /** للابتوب: يعيد النسخة الحالية كاملة بشرط الرمز السري */
 function backupExport_(body) {

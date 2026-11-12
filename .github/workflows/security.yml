@@ -1,0 +1,48 @@
+# فحص أمني أسبوعي (ومع كل تعديل على الفرع الرئيسي):
+# 1) بحث عن مفاتيح أو أسرار مسرّبة في الكود وتاريخه (gitleaks)
+# 2) فحص خامل للموقع المنشور بأداة OWASP ZAP (يقرأ الصفحات فقط ولا يهاجم)
+# 3) التحقق من شهادة HTTPS وتحويل http، ومقارنة نسخة Firebase المستخدمة بأحدث نسخة
+# النتائج في تبويب Actions ضمن التقارير المرفقة (Artifacts). لا يفشل النشر بسبب تحذيرات ZAP.
+name: security-scan
+on:
+  schedule:
+    - cron: '17 1 * * 6'   # كل سبت 4:17 فجراً بتوقيت الرياض
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: gitleaks (secrets in code and history)
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2 detect --source /repo --config /repo/.gitleaks.toml --redact --no-banner -v
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: HTTPS and redirect check
+        run: |
+          set -e
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://jabeen-bookings.online/)
+          echo "HTTPS status: $code"; test "$code" = "200"
+          loc=$(curl -sI http://jabeen-bookings.online/ | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
+          echo "http redirects to: $loc"; case "$loc" in https://*) ;; *) echo "::warning::HTTP does not redirect to HTTPS — enable Enforce HTTPS in GitHub Pages settings";; esac
+          echo | openssl s_client -servername jabeen-bookings.online -connect jabeen-bookings.online:443 2>/dev/null | openssl x509 -noout -dates
+      - name: Firebase SDK version check
+        run: |
+          used=$(grep -o 'firebasejs/[0-9.]*' index.html | head -1 | cut -d/ -f2)
+          latest=$(npm view firebase version)
+          echo "used: $used · latest: $latest"
+          if [ "${used%%.*}" != "${latest%%.*}" ]; then echo "::warning::Firebase SDK $used is a major version behind $latest — plan an update"; fi
+      - name: OWASP ZAP baseline (passive)
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: 'https://jabeen-bookings.online/'
+          allow_issue_writing: false
+          fail_action: false
+          cmd_options: '-a'

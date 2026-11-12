@@ -1,0 +1,8 @@
+# مفاتيح عامة بطبيعتها ولا تعتبر أسراراً: مفتاح Firebase Web API (محمي بقواعد قاعدة البيانات وApp Check)
+# ومفتاح موقع reCAPTCHA. أي مفتاح آخر يظهر في الكود يُعامل كتسريب.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "public web keys"
+regexes = ['''AIzaSyBs6zMzOL4ggegfLYIPgSb_RDqYXNf1cuo''', '''6LdIdBguAAAAAOMmfF5pMPakEfaKjwGRGdnSUT1Q''']
