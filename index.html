@@ -252,9 +252,15 @@ body.lgmode .lgfoot{display:block}
     <div class="lgtag">مشروع جبين للإسكان · مدينة ينبع الصناعية</div>
     <h2>الدخول</h2>
     <div id="lgStep1">
-      <div class="hint">اكتب بريدك المسجّل وبيوصلك رابط دخول صالح لمرة واحدة. الدخول ينتهي عند تحديث الصفحة أو إغلاقها، أو بعد 30 دقيقة بدون نشاط.</div>
-      <div class="f"><label>البريد الإلكتروني</label><input id="lgEmail" type="email" dir="ltr" autocomplete="email" placeholder="name@example.com"></div>
-      <button class="btn" id="lgBtn" style="width:100%">إرسال رابط الدخول</button>
+      <div class="hint">ادخل ببريدك المسجّل وكلمة المرور. الجهاز يتذكرك بعدها، فما تحتاج تدخل كل مرة.</div>
+      <div class="f"><label>البريد الإلكتروني</label><input id="lgEmail" type="email" dir="ltr" autocomplete="username" placeholder="name@example.com"></div>
+      <div class="f"><label>كلمة المرور</label><input id="lgPass" type="password" dir="ltr" autocomplete="current-password"></div>
+      <button class="btn" id="lgPwBtn" style="width:100%">دخول</button>
+      <div style="display:flex;justify-content:space-between;gap:8px;margin-top:10px;font-size:13px"><a href="#" id="lgReset">أول مرة أو نسيت كلمة المرور؟</a><a href="#" id="lgBtn">الدخول برابط على البريد</a></div>
+    </div>
+    <div id="lgStepReset" class="hidden">
+      <div class="hint">إذا كان البريد <b dir="ltr" id="lgResetTo"></b> مصرحاً له، بيوصله خلال دقيقة رابط لتعيين كلمة المرور. افتحه واختر كلمة مرور (6 أحرف على الأقل)، ثم ارجع هنا وادخل بها. (تأكد من مجلد الرسائل غير المرغوبة)</div>
+      <button class="btn sec" id="lgResetBack" style="width:100%">رجوع</button>
     </div>
     <div id="lgStep2" class="hidden">
       <div class="hint">إذا كان البريد <b dir="ltr" id="lgSentTo"></b> مصرحاً له، بيوصله رابط الدخول خلال دقيقة. افتح الرابط من نفس الجهاز والمتصفح. (تأكد من مجلد الرسائل غير المرغوبة)</div>
@@ -675,11 +681,13 @@ const authReady=auth.setPersistence(KEEP_SESSION?firebase.auth.Auth.Persistence.
 const emailKey=e=>String(e||'').trim().toLowerCase().replace(/\./g,',');
 const validEmail=e=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
 let me=null;
-function lgShow(step){['lgStep1','lgStep2','lgStep3','lgStepName'].forEach(i=>$(i).classList.toggle('hidden',i!==step))}
+function lgShow(step){['lgStep1','lgStep2','lgStep3','lgStepName','lgStepReset'].forEach(i=>$(i).classList.toggle('hidden',i!==step))}
 function lgErr(t){$('lgErr').textContent=t||''}
 function authErrAr(e){const c=String(e&&e.code||'');
   if(/too-many|quota/.test(c))return 'محاولات كثيرة، حاول بعد قليل';
   if(/invalid-action-code|expired/.test(c))return 'الرابط منتهي أو مستخدم من قبل. اطلب رابط جديد.';
+  if(/wrong-password|invalid-credential|invalid-login|user-not-found/.test(c))return 'البريد أو كلمة المرور غير صحيحة. إذا أول مرة تدخل، اضغط «أول مرة أو نسيت كلمة المرور؟»';
+  if(/operation-not-allowed/.test(c))return 'الدخول بكلمة المرور غير مفعّل بعد، استخدم الدخول برابط على البريد';
   if(/invalid-email/.test(c))return 'البريد غير صحيح، أو لا يطابق البريد اللي انرسل له الرابط';
   if(/network/.test(c))return 'تعذّر الاتصال بالإنترنت';
   return 'تعذّر الدخول، حاول مرة ثانية'}
@@ -698,7 +706,25 @@ async function completeLink(email){
   catch(e){lgShow('lgStep1');lgErr(authErrAr(e))}
   finally{history.replaceState(null,'',location.origin+location.pathname);try{localStorage.removeItem('jb-emailForSignIn')}catch(e){}}
 }
-$('lgBtn').onclick=sendLink;$('lgEmail').addEventListener('keydown',e=>{if(e.key==='Enter')sendLink()});
+async function pwLogin(){
+  const email=$('lgEmail').value.trim().toLowerCase(),pw=$('lgPass').value;lgErr('');
+  if(!validEmail(email))return lgErr('اكتب بريد صحيح');
+  if(!pw)return lgErr('اكتب كلمة المرور');
+  $('lgPwBtn').disabled=true;
+  try{await authReady;await auth.signInWithEmailAndPassword(email,pw)}catch(e){lgErr(authErrAr(e))}finally{$('lgPwBtn').disabled=false}
+}
+async function sendReset(){
+  const email=$('lgEmail').value.trim().toLowerCase();lgErr('');
+  if(!validEmail(email))return lgErr('اكتب بريدك أولاً ثم اضغط «أول مرة أو نسيت كلمة المرور؟»');
+  try{await authReady;await auth.sendPasswordResetEmail(email,{url:location.origin+location.pathname})}
+  catch(e){if(!/user-not-found/.test(String(e&&e.code||'')))return lgErr(authErrAr(e))}
+  $('lgResetTo').textContent=email;lgShow('lgStepReset');
+}
+$('lgPwBtn').onclick=pwLogin;$('lgPass').addEventListener('keydown',e=>{if(e.key==='Enter')pwLogin()});
+$('lgEmail').addEventListener('keydown',e=>{if(e.key==='Enter')$('lgPass').focus()});
+$('lgReset').onclick=e=>{e.preventDefault();sendReset()};
+$('lgResetBack').onclick=()=>{lgErr('');lgShow('lgStep1')};
+$('lgBtn').onclick=e=>{e.preventDefault();sendLink()};
 $('lgBack').onclick=()=>{lgErr('');lgShow('lgStep1')};
 $('lgConfirmBtn').onclick=()=>{const em=$('lgConfirmEmail').value.trim().toLowerCase();if(!validEmail(em))return lgErr('اكتب بريدك');completeLink(em)};
 $('lgNameBtn').onclick=async()=>{const n=$('lgName').value.trim();if(n.length<3)return lgErr('اكتب اسمك');
@@ -711,6 +737,7 @@ auth.onAuthStateChanged(async user=>{
   let rec=null;
   if(user.emailVerified){try{rec=(await ROOT.child('users/'+emailKey(email)).once('value')).val()}catch(e){rec=null}}
   if(rec&&rec.super)rec.role='admin';
+  if(!user.emailVerified){await auth.signOut();lgShow('lgStep1');lgErr('فعّل حسابك أولاً: اضغط «أول مرة أو نسيت كلمة المرور؟» وافتح الرابط اللي يوصلك.');return}
   if(!rec||!['maker','checker','admin'].includes(rec.role)){await auth.signOut();lgShow('lgStep1');lgErr('هذا البريد غير مصرح له بالدخول.');return}
   me={email,key:emailKey(email),rec};
   if(!rec.name){lgShow('lgStepName');lgErr('');return}
